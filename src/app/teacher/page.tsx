@@ -1,540 +1,570 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import Link from 'next/link';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import {
-  GraduationCap,
-  Video,
-  Plus,
-  Play,
-  Clock,
-  Edit2,
-  Trash2,
-  Save,
-  ArrowLeft,
   Sparkles,
-  CheckCircle,
-  AlertCircle,
-  Eye,
   LogOut,
-  User as UserIcon,
+  Plus,
+  Edit,
+  Trash2,
+  Video,
+  Clock,
+  ArrowLeft,
+  Save,
+  X,
+  Play,
+  Users,
   BookOpen,
-  MessageSquare,
 } from 'lucide-react';
-import { User, Lesson, Teacher } from '@/lib/types';
-import { getStoredUser, setStoredUser } from '@/lib/auth';
+import {
+  getStoredUser,
+  logoutUser,
+  refreshCurrentUser,
+  updateUserProfile,
+} from '@/lib/auth';
 import { INITIAL_LESSONS, INITIAL_TEACHERS } from '@/lib/data';
-import { supabase } from '@/lib/supabase';
-import { getYouTubeThumbnail, getYouTubeId, YouTubeIcon } from '@/lib/youtube';
+import { Lesson, PublicUser, Teacher } from '@/lib/types';
 import VideoModal from '@/components/VideoModal';
 import CommunityChat from '@/components/CommunityChat';
+import AvatarUploader from '@/components/AvatarUploader';
+import VideoLessonUploader from '@/components/VideoLessonUploader';
 
-export default function TeacherPage() {
+export default function TeacherDashboardPage() {
   const router = useRouter();
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [activeTab, setActiveTab] = useState<'lessons' | 'community'>('lessons');
-  const [lessons, setLessons] = useState<Lesson[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [user, setUser] = useState<PublicUser | null>(null);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
 
-  // Video preview modal
+  const [teachers, setTeachers] = useState<Teacher[]>(INITIAL_TEACHERS);
+  const [lessons, setLessons] = useState<Lesson[]>(INITIAL_LESSONS);
+  const [activeTab, setActiveTab] = useState<'lessons' | 'community'>(
+    'lessons'
+  );
+
+  // Video Modal & Editing state
   const [previewLesson, setPreviewLesson] = useState<Lesson | null>(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingLesson, setEditingLesson] = useState<Partial<Lesson> | null>(
+    null
+  );
+  const [isUploadingVideo, setIsUploadingVideo] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState('');
 
-  // Lesson Edit / Add modal
-  const [editingLesson, setEditingLesson] = useState<Lesson | null>(null);
-  const [isNewLesson, setIsNewLesson] = useState<boolean>(false);
-  const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const loadTeacherData = useCallback(async () => {
+    const cached = getStoredUser();
+    const fresh = await refreshCurrentUser();
+    const current = fresh || cached;
 
-  useEffect(() => {
-    const user = getStoredUser();
-    if (!user || (user.role !== 'teacher' && user.role !== 'admin')) {
-      router.push('/login');
+    if (!current || (current.role !== 'teacher' && current.role !== 'admin')) {
+      router.push('/login?next=/teacher');
       return;
     }
-    setCurrentUser(user);
 
-    async function loadTeacherData() {
-      setLoading(true);
-      try {
-        const subjectSlug = user?.subject_slug || 'ingliz-tili';
+    setUser(current);
+    setIsCheckingAuth(false);
 
-        const { data: dbLessons, error } = await supabase
-          .from('lessons')
-          .select('*')
-          .eq('subject_slug', subjectSlug)
-          .order('order_num', { ascending: true });
-
-        if (!error && dbLessons && dbLessons.length > 0) {
-          setLessons(dbLessons);
-        } else {
-          const localL = localStorage.getItem('devsisters_lessons');
-          const allL: Lesson[] = localL ? JSON.parse(localL) : INITIAL_LESSONS;
-          setLessons(allL.filter((l) => l.subject_slug === subjectSlug));
-        }
-      } catch (e) {
-        console.error(e);
-      } finally {
-        setLoading(false);
+    try {
+      const res = await fetch('/api/platform', { cache: 'no-store' });
+      if (res.ok) {
+        const data = (await res.json()) as {
+          teachers?: Teacher[];
+          lessons?: Lesson[];
+        };
+        if (data.teachers?.length) setTeachers(data.teachers);
+        if (data.lessons?.length) setLessons(data.lessons);
       }
+    } catch {
+      // Fallback kept
     }
-
-    loadTeacherData();
   }, [router]);
 
-  const handleLogout = () => {
-    setStoredUser(null);
-    router.push('/login');
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      void loadTeacherData();
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [loadTeacherData]);
+
+  const teacherSubjectSlug = user?.subject_slug || 'it-dasturlash';
+  const currentTeacherInfo = teachers.find(
+    (t) => t.slug === teacherSubjectSlug
+  );
+  const myLessons =
+    user?.role === 'admin'
+      ? lessons
+      : lessons.filter((l) => l.subject_slug === teacherSubjectSlug);
+
+  const handleOpenAdd = () => {
+    setFormError('');
+    setEditingLesson({
+      title: '',
+      description: '',
+      subject_slug: teacherSubjectSlug,
+      video_url: '',
+      video_storage_path: '',
+      duration: '12:00',
+      order_num: myLessons.length + 1,
+    });
+    setShowEditModal(true);
+  };
+
+  const handleOpenEdit = (lesson: Lesson) => {
+    setFormError('');
+    setEditingLesson({ ...lesson });
+    setShowEditModal(true);
   };
 
   const handleSaveLesson = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingLesson || !currentUser) return;
+    if (!editingLesson || isUploadingVideo) return;
+
+    setFormError('');
+    setSaving(true);
 
     try {
-      const subjectSlug = currentUser.subject_slug || 'ingliz-tili';
-      let updated: Lesson[];
+      const isEdit = Boolean(editingLesson.id);
+      const res = await fetch('/api/lessons', {
+        method: isEdit ? 'PATCH' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editingLesson),
+      });
+      const data = (await res.json()) as { lesson?: Lesson; error?: string };
 
-      if (isNewLesson) {
-        const payload = {
-          title: editingLesson.title,
-          description: editingLesson.description,
-          video_url: editingLesson.video_url,
-          duration: editingLesson.duration || '12:00',
-          subject_slug: subjectSlug,
-          order_num: lessons.length + 1,
-        };
-        const { data: insData, error: insErr } = await supabase.from('lessons').insert([payload]).select();
-        const savedItem: Lesson = insData && insData[0] ? insData[0] : { ...payload, id: crypto.randomUUID() };
-        updated = [...lessons, savedItem];
-      } else {
-        updated = lessons.map((l) => (l.id === editingLesson.id ? editingLesson : l));
-        await supabase
-          .from('lessons')
-          .update({
-            title: editingLesson.title,
-            description: editingLesson.description,
-            video_url: editingLesson.video_url,
-            duration: editingLesson.duration,
-          })
-          .eq('id', editingLesson.id);
+      if (!res.ok || !data.lesson) {
+        setFormError(data.error || 'Darsni saqlashda xatolik yuz berdi.');
+        setSaving(false);
+        return;
       }
 
-      setLessons(updated);
-
-      // Also update master list in localStorage
-      const localL = localStorage.getItem('devsisters_lessons');
-      let allL: Lesson[] = localL ? JSON.parse(localL) : INITIAL_LESSONS;
-      if (isNewLesson) {
-        allL.push(updated[updated.length - 1]);
+      if (isEdit) {
+        setLessons((prev) =>
+          prev.map((l) => (l.id === data.lesson!.id ? data.lesson! : l))
+        );
       } else {
-        allL = allL.map((l) => (l.id === editingLesson.id ? editingLesson : l));
+        setLessons((prev) => [...prev, data.lesson!]);
       }
-      localStorage.setItem('devsisters_lessons', JSON.stringify(allL));
 
+      setShowEditModal(false);
       setEditingLesson(null);
-      setIsNewLesson(false);
-      setStatusMessage({ type: 'success', text: 'Video dars muvaffaqiyatli saqlandi!' });
-      setTimeout(() => setStatusMessage(null), 3500);
-    } catch (err) {
-      console.error(err);
-      setStatusMessage({ type: 'error', text: 'Saqlashda xatolik yuz berdi.' });
+    } catch {
+      setFormError('Server bilan aloqada xatolik yuz berdi.');
+    } finally {
+      setSaving(false);
     }
   };
 
   const handleDeleteLesson = async (id: string) => {
-    if (!confirm('Darsni o‘chirmoqchimisiz?')) return;
-
-    const updated = lessons.filter((l) => l.id !== id);
-    setLessons(updated);
-
-    const localL = localStorage.getItem('devsisters_lessons');
-    let allL: Lesson[] = localL ? JSON.parse(localL) : INITIAL_LESSONS;
-    allL = allL.filter((l) => l.id !== id);
-    localStorage.setItem('devsisters_lessons', JSON.stringify(allL));
-
-    await supabase.from('lessons').delete().eq('id', id);
-    setStatusMessage({ type: 'success', text: 'Dars o‘chirildi.' });
-    setTimeout(() => setStatusMessage(null), 3000);
+    if (!confirm('Haqiqatan ham ushbu video darsni o‘chirmoqchimisiz?')) return;
+    try {
+      const res = await fetch(`/api/lessons?id=${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      });
+      if (res.ok) {
+        setLessons((prev) => prev.filter((l) => l.id !== id));
+      }
+    } catch {
+      // ignore
+    }
   };
 
-  if (!currentUser) return null;
+  const handleAvatarUploaded = async (url: string) => {
+    const res = await updateUserProfile({ avatar_url: url });
+    if (res.user) {
+      setUser(res.user);
+      setTeachers((prev) =>
+        prev.map((t) =>
+          t.slug === teacherSubjectSlug ? { ...t, avatar_url: url } : t
+        )
+      );
+    }
+  };
+
+  const handleLogout = async () => {
+    await logoutUser();
+    router.push('/');
+  };
+
+  if (isCheckingAuth || !user) {
+    return (
+      <div className="min-h-screen bg-[#0d071d] flex items-center justify-center text-pink-400 font-bold">
+        Yuklanmoqda...
+      </div>
+    );
+  }
 
   return (
-    <main className="min-h-screen bg-[#0d071d] text-slate-100 pb-20">
-      {/* Top Header */}
-      <header className="sticky top-0 z-40 bg-[#160d2e]/90 backdrop-blur-md border-b border-purple-900/40 px-3 sm:px-8 py-3.5 sm:py-4 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2 sm:gap-4 min-w-0">
-          <Link
-            href="/"
-            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white text-xs font-bold transition-colors flex-shrink-0"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span className="hidden sm:inline">Saytga qaytish</span>
-          </Link>
-          <div className="flex items-center gap-1.5 sm:gap-2 truncate">
-            <GraduationCap className="w-4 h-4 sm:w-5 sm:h-5 text-pink-400 flex-shrink-0" />
-            <h1 className="text-sm sm:text-lg font-black text-white truncate">O‘qituvchi Kabineti</h1>
+    <div className="min-h-screen bg-[#0d071d] text-slate-100 flex flex-col">
+      {/* Header */}
+      <header className="sticky top-0 z-40 bg-[#140b2a]/90 backdrop-blur-xl border-b border-purple-900/40 px-4 sm:px-8 py-4">
+        <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <Link
+              href="/"
+              className="w-10 h-10 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center text-slate-300"
+              title="Bosh sahifa"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </Link>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-extrabold text-lg sm:text-xl bg-gradient-to-r from-pink-400 to-purple-400 bg-clip-text text-transparent">
+                  Ustoz Kabineti
+                </span>
+                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-pink-500/20 text-pink-300 border border-pink-500/30">
+                  {currentTeacherInfo?.subject || teacherSubjectSlug}
+                </span>
+              </div>
+              <p className="text-xs text-slate-400">
+                Ustoz: <strong className="text-white">{user.name}</strong>
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={handleOpenAdd}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-500 hover:to-rose-500 text-white text-xs sm:text-sm font-bold shadow-lg shadow-pink-600/30 cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Yangi Video Dars</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white/5 hover:bg-rose-500/20 text-slate-300 hover:text-rose-400 border border-white/10 text-xs font-bold cursor-pointer"
+            >
+              <LogOut className="w-4 h-4" />
+              <span className="hidden sm:inline">Chiqish</span>
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+        {/* Profile Card with Avatar Upload */}
+        <div className="bg-[#160c2e] border border-purple-800/40 rounded-3xl p-6 flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-5">
+            <AvatarUploader
+              currentUrl={user.avatar_url || currentTeacherInfo?.avatar_url}
+              name={user.name}
+              folder="teachers"
+              size="lg"
+              label="Ustoz rasmini yuklash"
+              onUploaded={handleAvatarUploaded}
+            />
+            <div>
+              <div className="inline-flex items-center gap-1.5 text-xs font-bold text-pink-400 mb-1">
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Mentorlik Profili</span>
+              </div>
+              <h2 className="text-xl sm:text-2xl font-black text-white">
+                {user.name}
+              </h2>
+              <p className="text-xs sm:text-sm text-slate-400 mt-0.5">
+                {currentTeacherInfo?.experience || 'Tajribali mentor'} • Jami
+                darslar: {myLessons.length} ta
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 p-1.5 rounded-2xl bg-white/5 border border-white/10 self-start md:self-center">
+            <button
+              type="button"
+              onClick={() => setActiveTab('lessons')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer ${
+                activeTab === 'lessons'
+                  ? 'bg-pink-600 text-white shadow'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <BookOpen className="w-3.5 h-3.5" />
+              <span>Video Darslar</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('community')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer ${
+                activeTab === 'community'
+                  ? 'bg-purple-600 text-white shadow'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Users className="w-3.5 h-3.5" />
+              <span>O‘quvchilar Chati</span>
+            </button>
           </div>
         </div>
 
-        <button
-          onClick={handleLogout}
-          className="flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 rounded-xl bg-white/5 hover:bg-rose-500/20 text-slate-300 hover:text-rose-300 text-xs font-bold border border-white/10 transition-colors flex-shrink-0"
-        >
-          <LogOut className="w-4 h-4" />
-          <span>Chiqish</span>
-        </button>
-      </header>
+        {/* Lessons List */}
+        {activeTab === 'lessons' && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {myLessons.map((lesson) => {
+              const hasVideo = Boolean(
+                lesson.video_url &&
+                  !lesson.video_url.includes('youtube.com') &&
+                  !lesson.video_url.includes('youtu.be')
+              );
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
-        {/* Status Alert */}
-        {statusMessage && (
-          <div
-            className={`mb-6 p-4 rounded-2xl flex items-center gap-3 text-sm font-semibold border ${
-              statusMessage.type === 'success'
-                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
-                : 'bg-rose-500/10 border-rose-500/30 text-rose-300'
-            }`}
-          >
-            {statusMessage.type === 'success' ? (
-              <CheckCircle className="w-5 h-5 flex-shrink-0" />
-            ) : (
-              <AlertCircle className="w-5 h-5 flex-shrink-0" />
-            )}
-            <span>{statusMessage.text}</span>
+              return (
+                <div
+                  key={lesson.id}
+                  className="bg-[#160c2e] border border-purple-800/40 rounded-3xl overflow-hidden flex flex-col justify-between shadow-xl"
+                >
+                  <div
+                    onClick={() => setPreviewLesson(lesson)}
+                    className="relative h-44 bg-gradient-to-br from-[#231247] to-[#120826] cursor-pointer group flex items-center justify-center overflow-hidden"
+                  >
+                    {hasVideo ? (
+                      <video
+                        src={lesson.video_url}
+                        preload="metadata"
+                        muted
+                        playsInline
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex flex-col items-center gap-1.5 text-slate-400 text-xs">
+                        <Video className="w-8 h-8 text-pink-400/70" />
+                        <span>Video yuklanmagan (tahrirlang)</span>
+                      </div>
+                    )}
+                    <div className="absolute inset-0 bg-black/30 group-hover:bg-black/15 transition-colors flex items-center justify-center">
+                      <div className="w-12 h-12 rounded-full bg-pink-600/90 text-white flex items-center justify-center shadow-lg">
+                        <Play className="w-5 h-5 fill-white ml-0.5" />
+                      </div>
+                    </div>
+
+                    <div className="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-black/70 text-[11px] font-bold text-pink-300 border border-pink-500/30">
+                      {lesson.order_num}-dars • {lesson.subject_slug}
+                    </div>
+                    <div className="absolute bottom-3 right-3 px-2 py-0.5 rounded-lg bg-black/80 text-[11px] font-bold text-slate-200 flex items-center gap-1">
+                      <Clock className="w-3 h-3 text-pink-400" />
+                      <span>{lesson.duration}</span>
+                    </div>
+                  </div>
+
+                  <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
+                    <div>
+                      <h3 className="text-base font-bold text-white line-clamp-2">
+                        {lesson.title}
+                      </h3>
+                      <p className="text-xs text-slate-400 mt-1.5 line-clamp-2">
+                        {lesson.description}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-3 border-t border-purple-900/40">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEdit(lesson)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/5 hover:bg-purple-500/20 text-xs font-bold text-purple-300 border border-white/10 cursor-pointer"
+                      >
+                        <Edit className="w-3.5 h-3.5" />
+                        <span>Tahrirlash / Video</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteLesson(lesson.id)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-xs font-bold text-rose-400 border border-rose-500/30 cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>O‘chirish</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
 
-        {/* Teacher Profile Banner */}
-        <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-br from-[#1d123b] via-[#170e30] to-[#120a26] border border-purple-800/40 shadow-xl mb-10 flex flex-col sm:flex-row items-center sm:items-start gap-6">
-          <div className="relative w-24 h-24 rounded-3xl overflow-hidden border-2 border-pink-500 shadow-xl flex-shrink-0">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={currentUser.avatar_url || 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=600'}
-              alt={currentUser.name}
-              className="w-full h-full object-cover"
-            />
-          </div>
+        {activeTab === 'community' && (
+          <CommunityChat
+            currentUser={user}
+            className="!py-4 !bg-transparent !border-none"
+          />
+        )}
+      </main>
 
-          <div className="flex-1 text-center sm:text-left">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold bg-pink-500/15 text-pink-300 border border-pink-500/30 mb-2">
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>Fan ustozi: {currentUser.subject_slug?.replace('-', ' ').toUpperCase()}</span>
-            </div>
-            <h2 className="text-2xl sm:text-3xl font-extrabold text-white mb-1">
-              Xush kelibsiz, {currentUser.name}!
-            </h2>
-            <p className="text-xs sm:text-sm text-slate-300 mb-4 max-w-2xl">
-              Ushbu paneldan yangi video darsliklar yuklashingiz, mavzular konspektlarini kiritishingiz va darslarni to‘g‘ridan-to‘g‘ri boshqarishingiz mumkin.
-            </p>
+      {/* Video Player Preview */}
+      <VideoModal
+        lesson={previewLesson}
+        teachers={teachers}
+        onClose={() => setPreviewLesson(null)}
+      />
 
-            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3 text-xs">
-              <span className="px-3 py-1 rounded-xl bg-white/5 border border-white/10 text-slate-300">
-                Email: {currentUser.email}
-              </span>
-              <span className="px-3 py-1 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-300 font-bold">
-                Jami yuklangan darslar: {lessons.length} ta
-              </span>
-            </div>
-          </div>
+      {/* Add/Edit Lesson Modal with Local File Video Upload */}
+      {showEditModal && editingLesson && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in overflow-y-auto">
+          <div className="w-full max-w-2xl bg-[#160c2e] border border-purple-700/60 rounded-3xl p-6 sm:p-8 shadow-2xl relative my-8">
+            <button
+              type="button"
+              onClick={() => setShowEditModal(false)}
+              aria-label="Yopish"
+              className="absolute top-4 right-4 w-9 h-9 rounded-full bg-white/5 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 flex items-center justify-center cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
 
-          <button
-            onClick={() => {
-              setEditingLesson({
-                id: '',
-                title: '',
-                subject_slug: currentUser.subject_slug || 'ingliz-tili',
-                description: '',
-                video_url: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
-                duration: '12:00',
-                order_num: lessons.length + 1,
-              });
-              setIsNewLesson(true);
-            }}
-            className="w-full sm:w-auto px-5 py-3 rounded-2xl bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-500 hover:to-rose-500 text-white font-bold text-sm shadow-xl shadow-pink-600/30 flex items-center justify-center gap-2 self-center sm:self-start flex-shrink-0"
-          >
-            <Plus className="w-5 h-5" />
-            <span>Yangi Video Dars Yuklash</span>
-          </button>
-        </div>
+            <h3 className="text-xl font-extrabold text-white mb-5">
+              {editingLesson.id
+                ? 'Video Darsni Tahrirlash'
+                : 'Yangi Video Dars Qo‘shish'}
+            </h3>
 
-        {/* Teacher Navigation Tabs */}
-        <div className="flex items-center gap-2 sm:gap-3 mb-8 border-b border-purple-900/40 pb-4 overflow-x-auto scrollbar-none">
-          <button
-            onClick={() => setActiveTab('lessons')}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${
-              activeTab === 'lessons'
-                ? 'bg-pink-600 text-white shadow-lg shadow-pink-600/30'
-                : 'bg-white/5 text-slate-300 hover:bg-white/10'
-            }`}
-          >
-            <Video className="w-4 h-4" />
-            <span>Darslarim ({lessons.length})</span>
-          </button>
+            {formError && (
+              <div className="mb-4 p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-xs text-rose-300">
+                ⚠️ {formError}
+              </div>
+            )}
 
-          <button
-            onClick={() => setActiveTab('community')}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${
-              activeTab === 'community'
-                ? 'bg-rose-600 text-white shadow-lg shadow-rose-600/30'
-                : 'bg-white/5 text-slate-300 hover:bg-white/10'
-            }`}
-          >
-            <MessageSquare className="w-4 h-4" />
-            <span>Jonli Chat & O‘quvchilar bilan muloqot</span>
-          </button>
-        </div>
+            <form onSubmit={handleSaveLesson} className="space-y-4">
+              {user.role === 'admin' && (
+                <div>
+                  <label className="text-xs font-bold text-slate-300 block mb-1.5">
+                    Fan Yo‘nalishi
+                  </label>
+                  <select
+                    value={editingLesson.subject_slug || 'it-dasturlash'}
+                    onChange={(e) =>
+                      setEditingLesson({
+                        ...editingLesson,
+                        subject_slug: e.target.value,
+                      })
+                    }
+                    className="w-full px-4 py-2.5 rounded-xl bg-[#1f133b] border border-purple-700/40 text-sm text-white"
+                  >
+                    {teachers.map((t) => (
+                      <option key={t.id} value={t.slug}>
+                        {t.subject} ({t.name})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
-        {activeTab === 'community' ? (
-          <div className="animate-fade-in">
-            <CommunityChat currentUser={currentUser} />
-          </div>
-        ) : (
-          <div>
-            {/* Lesson Editor / Upload Form */}
-        {editingLesson && (
-          <div className="mb-10 p-6 sm:p-8 rounded-3xl bg-[#1b1035] border-2 border-pink-500/50 shadow-2xl">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                <Video className="w-5 h-5 text-pink-400" />
-                <span>{isNewLesson ? 'Yangi Video Darslik Yuklash' : 'Darsni Tahrirlash'}</span>
-              </h3>
-              <button
-                onClick={() => setEditingLesson(null)}
-                className="text-xs text-slate-400 hover:text-white"
-              >
-                Bekor qilish ✕
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveLesson} className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="md:col-span-2">
-                <label className="block text-xs font-bold uppercase text-slate-300 mb-1.5">
-                  Dars Sarlavhasi / Mavzu nomi
+              <div>
+                <label className="text-xs font-bold text-slate-300 block mb-1.5">
+                  Dars Sarlavhasi
                 </label>
                 <input
                   type="text"
                   required
-                  value={editingLesson.title}
+                  value={editingLesson.title || ''}
                   onChange={(e) =>
                     setEditingLesson({ ...editingLesson, title: e.target.value })
                   }
-                  placeholder="Masalan: 2-dars: Fe‘llar zamoni va gap tuzish qoidalari"
-                  className="w-full px-4 py-3 rounded-2xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-pink-500 text-sm"
+                  placeholder="Masalan: 2-dars: CSS Flexbox va Grid"
+                  className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-purple-700/40 text-sm text-white focus:outline-none focus:border-pink-500"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold uppercase text-slate-300 mb-1.5">
-                  Video Havolasi (YouTube yoki to‘g‘ridan-to‘g‘ri video URL)
-                </label>
-                <input
-                  type="url"
-                  required
-                  value={editingLesson.video_url}
-                  onChange={(e) =>
-                    setEditingLesson({ ...editingLesson, video_url: e.target.value })
-                  }
-                  placeholder="https://www.youtube.com/watch?v=... yoki https://...mp4"
-                  className="w-full px-4 py-3 rounded-2xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-pink-500 text-sm"
-                />
-                <p className="text-[11px] text-slate-400 mt-1">
-                  💡 YouTube video havolasi (masalan, Unlisted / Yashirin) kiriting. U saytda to‘g‘ridan-to‘g‘ri ochiladi.
-                </p>
-
-                {editingLesson.video_url && getYouTubeId(editingLesson.video_url) && (
-                  <div className="mt-3 p-3 rounded-2xl bg-black/40 border border-purple-800/50 flex items-center gap-3">
-                    <img
-                      src={getYouTubeThumbnail(editingLesson.video_url)}
-                      alt="YouTube Preview"
-                      className="w-24 h-14 rounded-xl object-cover border border-white/10"
-                    />
-                    <div>
-                      <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-400 mb-0.5">
-                        <CheckCircle className="w-3.5 h-3.5" />
-                        <span>YouTube video aniqlandi</span>
-                      </div>
-                      <p className="text-[11px] text-slate-400">
-                        Ushbu video devsisters.uz pleyerida moslashuvchan ravishda to‘g‘ridan-to‘g‘ri ochiladi.
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold uppercase text-slate-300 mb-1.5">
-                  Dars Davomiyligi
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={editingLesson.duration}
-                  onChange={(e) =>
-                    setEditingLesson({ ...editingLesson, duration: e.target.value })
-                  }
-                  placeholder="Masalan: 14:30"
-                  className="w-full px-4 py-3 rounded-2xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-pink-500 text-sm"
-                />
-              </div>
-
-              <div className="md:col-span-2">
-                <label className="block text-xs font-bold uppercase text-slate-300 mb-1.5">
-                  Dars Mazmuni va Konspekti (Tavsif)
+                <label className="text-xs font-bold text-slate-300 block mb-1.5">
+                  Qisqacha Tavsif
                 </label>
                 <textarea
-                  rows={4}
-                  required
-                  value={editingLesson.description}
+                  rows={3}
+                  value={editingLesson.description || ''}
                   onChange={(e) =>
-                    setEditingLesson({ ...editingLesson, description: e.target.value })
+                    setEditingLesson({
+                      ...editingLesson,
+                      description: e.target.value,
+                    })
                   }
-                  placeholder="Ushbu darsda o‘quvchilar nimalarni o‘rganadi va qanday vazifalar berilgan..."
-                  className="w-full px-4 py-3 rounded-2xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-pink-500 text-sm"
+                  placeholder="Ushbu darsda nimalarni o‘rganamiz..."
+                  className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-purple-700/40 text-sm text-white focus:outline-none focus:border-pink-500 resize-none"
                 />
               </div>
 
-              <div className="md:col-span-2 flex items-center justify-end gap-3 pt-4 border-t border-purple-900/40">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-bold text-slate-300 block mb-1.5">
+                    Tartib raqami
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={editingLesson.order_num || 1}
+                    onChange={(e) =>
+                      setEditingLesson({
+                        ...editingLesson,
+                        order_num: Number(e.target.value) || 1,
+                      })
+                    }
+                    className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-purple-700/40 text-sm text-white"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-300 block mb-1.5">
+                    Davomiyligi (mm:ss)
+                  </label>
+                  <input
+                    type="text"
+                    value={editingLesson.duration || ''}
+                    onChange={(e) =>
+                      setEditingLesson({
+                        ...editingLesson,
+                        duration: e.target.value,
+                      })
+                    }
+                    placeholder="14:20"
+                    className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-purple-700/40 text-sm text-white"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-300 block mb-1.5">
+                  Video Faylni Yuklash (Telefon / Kompyuter xotirasidan)
+                </label>
+                <VideoLessonUploader
+                  subjectSlug={editingLesson.subject_slug || teacherSubjectSlug}
+                  currentVideoUrl={editingLesson.video_url}
+                  onUploadingChange={setIsUploadingVideo}
+                  onUploaded={({ videoUrl, storagePath, duration }) =>
+                    setEditingLesson((prev) => ({
+                      ...prev,
+                      video_url: videoUrl,
+                      video_storage_path: storagePath,
+                      duration: duration || prev?.duration || '10:00',
+                    }))
+                  }
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-3">
                 <button
                   type="button"
-                  onClick={() => setEditingLesson(null)}
-                  className="px-5 py-2.5 rounded-xl text-slate-400 hover:text-white text-sm font-semibold"
+                  onClick={() => setShowEditModal(false)}
+                  className="px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-sm font-bold cursor-pointer"
                 >
                   Bekor qilish
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2.5 rounded-xl bg-pink-600 hover:bg-pink-500 text-white font-bold text-sm shadow-lg shadow-pink-600/30 flex items-center gap-2"
+                  disabled={saving || isUploadingVideo}
+                  className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 disabled:opacity-50 text-white text-sm font-bold flex items-center gap-2 cursor-pointer"
                 >
                   <Save className="w-4 h-4" />
-                  <span>Saqlash va Saytga Chiqarish</span>
+                  <span>
+                    {isUploadingVideo
+                      ? 'Video yuklanmoqda...'
+                      : saving
+                        ? 'Saqlanmoqda...'
+                        : 'Darsni Saqlash'}
+                  </span>
                 </button>
               </div>
             </form>
           </div>
-        )}
-
-        {/* Lessons List Grid */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-xl font-bold text-white flex items-center gap-2">
-              <BookOpen className="w-5 h-5 text-purple-400" />
-              <span>Siz yuklagan darsliklar ro‘yxati</span>
-            </h3>
-            <span className="text-xs text-slate-400">
-              O‘quvchilar bu darslarni asosiy sahifada ko‘ra oladi
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {lessons.map((lesson) => (
-              <div
-                key={lesson.id}
-                className="rounded-3xl p-5 sm:p-6 bg-[#180f30] border border-purple-800/40 hover:border-pink-500/40 transition-all flex flex-col justify-between"
-              >
-                <div>
-                  {/* YouTube Thumbnail Preview */}
-                  <div
-                    onClick={() => setPreviewLesson(lesson)}
-                    className="relative aspect-video w-full rounded-2xl overflow-hidden mb-4 bg-black/60 cursor-pointer group"
-                  >
-                    {getYouTubeThumbnail(lesson.video_url) ? (
-                      <img
-                        src={getYouTubeThumbnail(lesson.video_url)}
-                        alt={lesson.title}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                      />
-                    ) : null}
-                    <div className="absolute inset-0 bg-black/30 group-hover:bg-black/10 transition-colors" />
-
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <div className="w-11 h-11 rounded-2xl bg-red-600 text-white flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-                        <Play className="w-5 h-5 ml-0.5 fill-white" />
-                      </div>
-                    </div>
-
-                    <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5">
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-600 text-white flex items-center gap-1">
-                        <YouTubeIcon className="w-3 h-3 text-white" /> HD
-                      </span>
-                    </div>
-
-                    <div className="absolute bottom-2.5 right-2.5 px-2 py-0.5 rounded-md bg-black/70 text-white text-[10px] font-bold flex items-center gap-1">
-                      <Clock className="w-3 h-3 text-pink-400" />
-                      <span>{lesson.duration || '12:00'}</span>
-                    </div>
-                  </div>
-
-                  <h4 className="text-base font-bold text-white mb-2 line-clamp-2">
-                    {lesson.title}
-                  </h4>
-
-                  <p className="text-xs text-slate-300 leading-relaxed line-clamp-2 mb-6">
-                    {lesson.description}
-                  </p>
-                </div>
-
-                <div className="pt-4 border-t border-purple-900/40 flex items-center justify-between">
-                  <span className="text-[11px] text-slate-500 font-mono truncate max-w-[140px]">
-                    {lesson.video_url}
-                  </span>
-
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => {
-                        setEditingLesson(lesson);
-                        setIsNewLesson(false);
-                      }}
-                      className="p-2 rounded-xl bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 text-xs font-bold transition-colors"
-                      title="Tahrirlash"
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => handleDeleteLesson(lesson.id)}
-                      className="p-2 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 text-xs font-bold transition-colors"
-                      title="O‘chirish"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {lessons.length === 0 && (
-            <div className="text-center py-16 bg-[#160d2b]/60 rounded-3xl border border-dashed border-purple-800/40">
-              <p className="text-slate-400 text-sm mb-4">Siz hali birorta dars yuklamadingiz.</p>
-              <button
-                onClick={() => {
-                  setEditingLesson({
-                    id: '',
-                    title: '',
-                    subject_slug: currentUser.subject_slug || 'ingliz-tili',
-                    description: '',
-                    video_url: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
-                    duration: '12:00',
-                    order_num: 1,
-                  });
-                  setIsNewLesson(true);
-                }}
-                className="px-5 py-2.5 rounded-xl bg-pink-600 text-white font-bold text-xs"
-              >
-                Birinchi darsni yuklash
-              </button>
-            </div>
-          )}
         </div>
-      </div>
-    )}
-  </div>
-
-      {/* Video Modal Preview */}
-      <VideoModal
-        lesson={previewLesson}
-        onClose={() => setPreviewLesson(null)}
-      />
-    </main>
+      )}
+    </div>
   );
 }

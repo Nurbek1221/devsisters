@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { Sparkles, ArrowRight, BookOpenCheck, CheckCircle2, HeartHandshake, Shield, Smartphone } from 'lucide-react';
+import { Sparkles, ArrowRight, BookOpenCheck, CheckCircle2, HeartHandshake, Smartphone } from 'lucide-react';
 
 interface HeroProps {
   onStartLearning?: () => void;
@@ -34,7 +34,7 @@ export default function Hero({ onStartLearning }: HeroProps) {
           {/* Subtitle */}
           <p className="text-sm sm:text-lg lg:text-xl text-slate-300 font-normal leading-relaxed mb-8 sm:mb-10 max-w-2xl mx-auto px-2">
             Qizlarga qulay, zamonaviy va mutlaqo bepul bilim olish muhiti. 
-            Yetti fan, yetti professional ustoz va qulay raqamli platforma!
+            Sakkiz yo‘nalish (IT va asosiy fanlar), kuchli ustozlar va qulay raqamli platforma!
           </p>
 
           {/* Action Buttons */}
@@ -42,7 +42,7 @@ export default function Hero({ onStartLearning }: HeroProps) {
             <button
               onClick={() => {
                 if (onStartLearning) onStartLearning();
-                else window.location.href = '#fanlar';
+                else document.getElementById('fanlar')?.scrollIntoView({ behavior: 'smooth' });
               }}
               className="w-full sm:w-auto px-8 py-4 rounded-2xl bg-gradient-to-r from-pink-500 to-rose-600 text-white font-bold text-base shadow-xl shadow-pink-500/25 hover:shadow-pink-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2.5"
             >
@@ -86,7 +86,7 @@ export default function Hero({ onStartLearning }: HeroProps) {
               </div>
               <h3 className="text-lg font-bold text-white mb-2">Yondashuv</h3>
               <p className="text-sm text-pink-100 leading-snug">
-                Yetti fan, yetti kuchli o‘qituvchi, bitta qulay va chiroyli sayt.
+                Sakkiz yo‘nalish (IT va asosiy fanlar), kuchli ustozlar, bitta qulay sayt.
               </p>
             </div>
           </div>

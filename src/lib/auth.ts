@@ -1,185 +1,192 @@
-import { User } from './types';
-import { supabase } from './supabase';
+import { PublicUser, User } from './types';
 
-export const DEMO_USERS: User[] = [
+export interface DemoAccountPreset {
+  id: string;
+  name: string;
+  email: string;
+  demoPass: string;
+  role: 'admin' | 'teacher' | 'student';
+  subject_slug?: string;
+}
+
+export const DEMO_USERS: DemoAccountPreset[] = [
   {
     id: 'u-admin',
-    name: 'Asosiy Administrator',
+    name: 'Nurbek Jabborov (Admin)',
     email: 'admin@devsisters.uz',
-    password: 'admin123',
+    demoPass: 'admin123',
     role: 'admin',
-    avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=600',
-    phone: '+998 90 123 45 67',
-    points: 999,
+  },
+  {
+    id: 'u-teacher-8',
+    name: 'Karimova Aziza (IT ustoz)',
+    email: 'aziza@devsisters.uz',
+    demoPass: 'teacher123',
+    role: 'teacher',
+    subject_slug: 'it-dasturlash',
   },
   {
     id: 'u-teacher-1',
-    name: 'Hazratova Sevinch',
+    name: 'Hazratova Sevinch (Ingliz tili)',
     email: 'sevinch@devsisters.uz',
-    password: 'teacher123',
+    demoPass: 'teacher123',
     role: 'teacher',
     subject_slug: 'ingliz-tili',
-    avatar_url: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=600',
-    phone: '+998 91 234 56 78',
-    points: 500,
-  },
-  {
-    id: 'u-teacher-2',
-    name: 'Lutfulloyeva Mahliyo',
-    email: 'mahliyo@devsisters.uz',
-    password: 'teacher123',
-    role: 'teacher',
-    subject_slug: 'arab-tili',
-    avatar_url: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=600',
-    phone: '+998 93 345 67 89',
-    points: 500,
-  },
-  {
-    id: 'u-teacher-3',
-    name: 'Mattiyeva Ilmira',
-    email: 'ilmira@devsisters.uz',
-    password: 'teacher123',
-    role: 'teacher',
-    subject_slug: 'sport',
-    avatar_url: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&q=80&w=600',
-    phone: '+998 94 456 78 90',
-    points: 500,
   },
   {
     id: 'u-student-1',
-    name: 'Madina Rahimova',
+    name: 'Madina Rahimova (O‘quvchi)',
     email: 'madina@devsisters.uz',
-    password: 'student123',
+    demoPass: 'student123',
     role: 'student',
     subject_slug: 'ingliz-tili',
-    avatar_url: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&q=80&w=600',
-    phone: '+998 95 901 23 45',
-    points: 240,
   },
 ];
 
-export function getStoredUser(): User | null {
+const USER_STORAGE_KEY = 'devsisters_active_user';
+
+export function getStoredUser(): PublicUser | null {
   if (typeof window === 'undefined') return null;
-  const userJson = localStorage.getItem('devsisters_active_user');
+  const userJson = localStorage.getItem(USER_STORAGE_KEY);
   if (!userJson) return null;
   try {
-    return JSON.parse(userJson);
+    const parsed = JSON.parse(userJson) as User;
+    // Strip any legacy plaintext password from cache
+    const { password: _ignored, ...safeUser } = parsed;
+    void _ignored;
+    return safeUser;
   } catch {
     return null;
   }
 }
 
-export function setStoredUser(user: User | null): void {
+export function setStoredUser(user: PublicUser | null): void {
   if (typeof window === 'undefined') return;
   if (!user) {
-    localStorage.removeItem('devsisters_active_user');
+    localStorage.removeItem(USER_STORAGE_KEY);
     sessionStorage.removeItem('devsisters_admin_auth');
   } else {
-    localStorage.setItem('devsisters_active_user', JSON.stringify(user));
-    if (user.role === 'admin') {
+    const { password: _ignored, ...safeUser } = user as User;
+    void _ignored;
+    localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(safeUser));
+    if (safeUser.role === 'admin') {
       sessionStorage.setItem('devsisters_admin_auth', 'true');
+    } else {
+      sessionStorage.removeItem('devsisters_admin_auth');
     }
   }
 }
 
-export async function loginUser(email: string, pass: string): Promise<{ user?: User; error?: string }> {
-  const cleanEmail = email.trim().toLowerCase();
-  const cleanPass = pass.trim();
-
+export async function loginUser(
+  email: string,
+  pass: string
+): Promise<{ user?: PublicUser; error?: string }> {
   try {
-    // 1. Try Supabase
-    const { data, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('email', cleanEmail)
-      .eq('password', cleanPass)
-      .maybeSingle();
-
-    if (!error && data) {
-      setStoredUser(data);
-      return { user: data };
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password: pass }),
+    });
+    const data = (await res.json()) as { user?: PublicUser; error?: string };
+    if (!res.ok || !data.user) {
+      return { error: data.error || 'Email yoki parol noto‘g‘ri!' };
     }
-  } catch (e) {
-    console.warn('Supabase auth fallback:', e);
+    setStoredUser(data.user);
+    return { user: data.user };
+  } catch {
+    return { error: 'Server bilan bog‘lanishda xatolik yuz berdi.' };
   }
-
-  // 2. Check local users or demo users
-  const localUsersJson = typeof window !== 'undefined' ? localStorage.getItem('devsisters_users_list') : null;
-  const allUsers: User[] = localUsersJson ? JSON.parse(localUsersJson) : DEMO_USERS;
-
-  const found = allUsers.find(
-    (u) => u.email.toLowerCase() === cleanEmail && u.password === cleanPass
-  );
-
-  if (found) {
-    setStoredUser(found);
-    return { user: found };
-  }
-
-  return { error: 'Email yoki parol noto‘g‘ri kiritildi!' };
 }
 
 export async function registerStudent(
   name: string,
   email: string,
   pass: string,
-  subject_slug?: string,
-  phone?: string
-): Promise<{ user?: User; error?: string }> {
-  const cleanEmail = email.trim().toLowerCase();
-
-  const newUser: User = {
-    id: `u-${Date.now()}`,
-    name: name.trim(),
-    email: cleanEmail,
-    password: pass.trim(),
-    role: 'student',
-    subject_slug: subject_slug || 'arab-tili',
-    phone: phone?.trim() || '',
-    avatar_url: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=600',
-    points: 100, // Welcome bonus points!
-    created_at: new Date().toISOString(),
-  };
-
+  phone?: string,
+  subjectSlug?: string,
+  avatarUrl?: string
+): Promise<{ user?: PublicUser; error?: string }> {
   try {
-    await supabase.from('users').insert([newUser]);
-  } catch (e) {
-    console.warn('Supabase register error:', e);
+    const res = await fetch('/api/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name,
+        email,
+        password: pass,
+        phone,
+        subject_slug: subjectSlug,
+        avatar_url: avatarUrl,
+      }),
+    });
+    const data = (await res.json()) as { user?: PublicUser; error?: string };
+    if (!res.ok || !data.user) {
+      return { error: data.error || 'Ro‘yxatdan o‘tishda xatolik!' };
+    }
+    setStoredUser(data.user);
+    return { user: data.user };
+  } catch {
+    return { error: 'Server bilan bog‘lanishda xatolik yuz berdi.' };
   }
-
-  // Save to local
-  const localUsersJson = typeof window !== 'undefined' ? localStorage.getItem('devsisters_users_list') : null;
-  const list: User[] = localUsersJson ? JSON.parse(localUsersJson) : [...DEMO_USERS];
-  list.push(newUser);
-  localStorage.setItem('devsisters_users_list', JSON.stringify(list));
-
-  setStoredUser(newUser);
-  return { user: newUser };
 }
 
-export async function updateUserSubject(userId: string, subjectSlug: string): Promise<User | null> {
-  const current = getStoredUser();
-  if (!current) return null;
-  const updated: User = { ...current, subject_slug: subjectSlug };
-  setStoredUser(updated);
-
-  // Update in local list
-  const localUsersJson = typeof window !== 'undefined' ? localStorage.getItem('devsisters_users_list') : null;
-  if (localUsersJson) {
-    const list: User[] = JSON.parse(localUsersJson);
-    const idx = list.findIndex((u) => u.id === userId);
-    if (idx !== -1) {
-      list[idx].subject_slug = subjectSlug;
-      localStorage.setItem('devsisters_users_list', JSON.stringify(list));
-    }
-  }
-
-  // Update in Supabase
+export async function logoutUser(): Promise<void> {
   try {
-    await supabase.from('users').update({ subject_slug: subjectSlug }).eq('id', userId);
-  } catch (e) {
-    console.warn('Supabase update subject:', e);
+    await fetch('/api/auth/logout', { method: 'POST' });
+  } catch {
+    // ignore network failure on logout
   }
+  setStoredUser(null);
+}
 
-  return updated;
+export async function refreshCurrentUser(): Promise<PublicUser | null> {
+  try {
+    const res = await fetch('/api/auth/me', { cache: 'no-store' });
+    if (!res.ok) {
+      if (res.status === 401) {
+        setStoredUser(null);
+      }
+      return null;
+    }
+    const data = (await res.json()) as { user?: PublicUser | null };
+    if (data.user) {
+      setStoredUser(data.user);
+      return data.user;
+    }
+    return null;
+  } catch {
+    return getStoredUser();
+  }
+}
+
+export async function updateUserProfile(updates: {
+  name?: string;
+  phone?: string;
+  subject_slug?: string;
+  avatar_url?: string;
+}): Promise<{ user?: PublicUser; error?: string }> {
+  try {
+    const res = await fetch('/api/auth/me', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates),
+    });
+    const data = (await res.json()) as { user?: PublicUser; error?: string };
+    if (!res.ok || !data.user) {
+      return { error: data.error || 'Profilni yangilashda xatolik.' };
+    }
+    setStoredUser(data.user);
+    return { user: data.user };
+  } catch {
+    return { error: 'Server bilan bog‘lanishda xatolik.' };
+  }
+}
+
+export async function updateUserSubject(
+  userId: string,
+  subjectSlug: string
+): Promise<PublicUser | null> {
+  void userId;
+  const res = await updateUserProfile({ subject_slug: subjectSlug });
+  return res.user || null;
 }

@@ -15,37 +15,43 @@ import VideoModal from '@/components/VideoModal';
 import CertificateModal from '@/components/CertificateModal';
 import AiTutorModal from '@/components/AiTutorModal';
 import OnboardingModal from '@/components/OnboardingModal';
+import StudentLeaderboard from '@/components/student/StudentLeaderboard';
 
-import { Teacher, Lesson, Quiz, PracticeItem, CommunityPost } from '@/lib/types';
+import {
+  Teacher,
+  Lesson,
+  Quiz,
+  PracticeItem,
+  LeaderboardEntry,
+} from '@/lib/types';
 import {
   INITIAL_TEACHERS,
   INITIAL_LESSONS,
   INITIAL_QUIZZES,
   INITIAL_PRACTICE,
-  INITIAL_POSTS,
 } from '@/lib/data';
-import { supabase } from '@/lib/supabase';
 import { getStoredUser } from '@/lib/auth';
 
 export default function Home() {
   const [teachers, setTeachers] = useState<Teacher[]>(INITIAL_TEACHERS);
   const [lessons, setLessons] = useState<Lesson[]>(INITIAL_LESSONS);
   const [quizzes, setQuizzes] = useState<Quiz[]>(INITIAL_QUIZZES);
-  const [practiceItems, setPracticeItems] = useState<PracticeItem[]>(INITIAL_PRACTICE);
-  const [communityPosts, setCommunityPosts] = useState<CommunityPost[]>(INITIAL_POSTS);
+  const [practiceItems, setPracticeItems] =
+    useState<PracticeItem[]>(INITIAL_PRACTICE);
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
 
   const [selectedSubject, setSelectedSubject] = useState<string | null>(null);
-  const [activeVideoLesson, setActiveVideoLesson] = useState<Lesson | null>(null);
-
-  // Onboarding Modal for first-time visitors
+  const [activeVideoLesson, setActiveVideoLesson] = useState<Lesson | null>(
+    null
+  );
   const [showOnboarding, setShowOnboarding] = useState(false);
 
-  // Certificate Modal state
   const [certData, setCertData] = useState<{
     isOpen: boolean;
     courseName: string;
     scorePercent: number;
     studentName: string;
+    subjectSlug?: string;
   }>({
     isOpen: false,
     courseName: 'Umumiy Ta‘lim Kursi',
@@ -53,118 +59,49 @@ export default function Home() {
     studentName: 'O‘quvchi Qiz',
   });
 
-  // Load live data from Supabase & localStorage
   useEffect(() => {
-    async function loadLiveData() {
+    let active = true;
+    async function loadPlatform() {
       try {
-        // 1. Fetch Teachers
-        const { data: dbTeachers, error: tErr } = await supabase
-          .from('teachers')
-          .select('*')
-          .order('display_order', { ascending: true });
-
-        if (!tErr && dbTeachers && dbTeachers.length > 0) {
-          setTeachers(dbTeachers);
-        } else {
-          const localT = localStorage.getItem('devsisters_teachers');
-          if (localT) setTeachers(JSON.parse(localT));
-        }
-
-        // 2. Fetch Lessons
-        const { data: dbLessons, error: lErr } = await supabase
-          .from('lessons')
-          .select('*')
-          .order('order_num', { ascending: true });
-
-        if (!lErr && dbLessons && dbLessons.length > 0) {
-          setLessons(dbLessons);
-        } else {
-          const localL = localStorage.getItem('devsisters_lessons');
-          if (localL) setLessons(JSON.parse(localL));
-        }
-
-        // 3. Fetch Quizzes
-        const { data: dbQuizzes, error: qErr } = await supabase.from('quizzes').select('*');
-        if (!qErr && dbQuizzes && dbQuizzes.length > 0) {
-          const merged = [...INITIAL_QUIZZES];
-          dbQuizzes.forEach((dbQ) => {
-            const idx = merged.findIndex((q) => q.subject_slug === dbQ.subject_slug);
-            if (idx >= 0) {
-              merged[idx] = dbQ;
-            } else {
-              merged.push(dbQ);
-            }
-          });
-          setQuizzes(merged);
-        }
-
-        // 4. Fetch Community Posts
-        const { data: dbPosts, error: pErr } = await supabase
-          .from('community_posts')
-          .select('*')
-          .order('created_at', { ascending: false });
-
-        if (!pErr && dbPosts && dbPosts.length > 0) {
-          setCommunityPosts(dbPosts);
-        } else {
-          const localP = localStorage.getItem('devsisters_posts');
-          if (localP) setCommunityPosts(JSON.parse(localP));
-        }
-      } catch (err) {
-        console.warn('Could not sync with Supabase in background:', err);
+        const res = await fetch('/api/platform', { cache: 'no-store' });
+        if (!res.ok || !active) return;
+        const data = (await res.json()) as {
+          teachers?: Teacher[];
+          lessons?: Lesson[];
+          quizzes?: Quiz[];
+          practice_items?: PracticeItem[];
+          leaderboard?: LeaderboardEntry[];
+        };
+        if (!active) return;
+        if (data.teachers?.length) setTeachers(data.teachers);
+        if (data.lessons?.length) setLessons(data.lessons);
+        if (data.quizzes?.length) setQuizzes(data.quizzes);
+        if (data.practice_items?.length) setPracticeItems(data.practice_items);
+        if (data.leaderboard?.length) setLeaderboard(data.leaderboard);
+      } catch {
+        // Keep initial data fallback cleanly
       }
     }
-
-    loadLiveData();
-
-    // Check if new visitor for onboarding
-    const activeUser = getStoredUser();
-    if (!activeUser) {
-      const seen = sessionStorage.getItem('devsisters_onboarding_seen');
-      if (!seen) {
-        const timer = setTimeout(() => {
-          setShowOnboarding(true);
-        }, 600);
-        return () => clearTimeout(timer);
-      }
-    }
-  }, []);
-
-  // Handle adding new community post
-  const handleAddPost = async (newPost: Omit<CommunityPost, 'id' | 'likes' | 'created_at'>) => {
-    const postItem: CommunityPost = {
-      ...newPost,
-      id: `post-${Date.now()}`,
-      likes: 0,
-      created_at: 'Hozirgina',
+    loadPlatform();
+    return () => {
+      active = false;
     };
-
-    const updated = [postItem, ...communityPosts];
-    setCommunityPosts(updated);
-    localStorage.setItem('devsisters_posts', JSON.stringify(updated));
-
-    // Also insert to Supabase
-    try {
-      await supabase.from('community_posts').insert([
-        {
-          author_name: postItem.author_name,
-          title: postItem.title,
-          content: postItem.content,
-          likes: 0,
-        },
-      ]);
-    } catch (e) {
-      console.error(e);
-    }
-  };
+  }, []);
 
   const handleOpenCertificate = (courseName: string, scorePercent: number) => {
     const user = getStoredUser();
+    const matchedTeacher = teachers.find(
+      (t) =>
+        courseName.toLowerCase().includes(t.subject.toLowerCase()) ||
+        courseName.toLowerCase().includes(t.slug.toLowerCase())
+    );
+
     setCertData({
       isOpen: true,
       courseName: courseName || 'devsisters.uz Ta‘lim Dasturi',
       scorePercent: scorePercent || 100,
-      studentName: user?.name || 'Munisa Aliyeva',
+      studentName: user?.name || 'Madina Rahimova',
+      subjectSlug: matchedTeacher?.slug,
     });
   };
 
@@ -195,37 +132,46 @@ export default function Home() {
 
         <QuizSection
           quizzes={quizzes}
-          onViewCertificate={(course, score) => handleOpenCertificate(course, score)}
+          onViewCertificate={(course, score) =>
+            handleOpenCertificate(course, score)
+          }
         />
 
         <PracticeSection items={practiceItems} />
+
+        {leaderboard.length > 0 && (
+          <section className="py-16 bg-[#0d071d] border-t border-purple-900/30">
+            <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+              <StudentLeaderboard entries={leaderboard} teachers={teachers} />
+            </div>
+          </section>
+        )}
 
         <RoadmapSection />
       </main>
 
       <Footer />
 
-      {/* Video Modal Player */}
       <VideoModal
         lesson={activeVideoLesson}
+        teachers={teachers}
         onClose={() => setActiveVideoLesson(null)}
       />
 
-      {/* Luxury Educational Certificate Modal */}
       <CertificateModal
         isOpen={certData.isOpen}
         onClose={() => setCertData((prev) => ({ ...prev, isOpen: false }))}
         studentName={certData.studentName}
         courseName={certData.courseName}
         scorePercent={certData.scorePercent}
+        subjectSlug={certData.subjectSlug}
       />
 
-      {/* SisterAI 24/7 Smart Floating Tutor */}
       <AiTutorModal />
 
-      {/* First-time Visitor Onboarding & Subject Selection Modal */}
       <OnboardingModal
         isOpen={showOnboarding}
+        teachers={teachers}
         onClose={() => {
           setShowOnboarding(false);
           sessionStorage.setItem('devsisters_onboarding_seen', 'true');

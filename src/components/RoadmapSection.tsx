@@ -1,14 +1,14 @@
 'use client';
 
 import React from 'react';
-import { Sparkles, CheckCircle2, Rocket, Code2, Users2, FileSpreadsheet } from 'lucide-react';
+import { Sparkles, Rocket, Code2, Users2, FileSpreadsheet } from 'lucide-react';
 
 export default function RoadmapSection() {
   const steps = [
     {
       num: '1',
       title: 'Tayyorgarlik',
-      desc: 'Dars materiallarini 7 ta o‘qituvchi bilan birgalikda tizimlashtirish va tayyorlash.',
+      desc: 'Dars materiallarini 8 ta yo‘nalish ustozlari bilan birgalikda tizimlashtirish va tayyorlash.',
       icon: FileSpreadsheet,
       badge: 'Bajarildi',
       badgeColor: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',

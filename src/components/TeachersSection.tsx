@@ -28,7 +28,7 @@ export default function TeachersSection({
         <div className="mb-8">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-pink-500/10 border border-pink-500/20 text-pink-400 text-xs font-bold mb-3 uppercase tracking-wider">
             <Sparkles className="w-3.5 h-3.5" />
-            <span>7 ta Fan • 7 ta Tajribali Ustoz</span>
+            <span>{teachers.length} ta Yo‘nalish • Tajribali Ustozlar</span>
           </div>
           <h2 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
             Fanlar va O‘qituvchilar

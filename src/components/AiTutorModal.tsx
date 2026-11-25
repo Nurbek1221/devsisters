@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Bot, Send, Sparkles, X, MessageSquare, User, BookOpen } from 'lucide-react';
+import { Bot, Send, Sparkles, X, User } from 'lucide-react';
 
 interface Message {
   id: string;
@@ -20,206 +20,247 @@ export default function AiTutorModal() {
     {
       id: '1',
       sender: 'ai',
-      text: 'Assalomu alaykum! Men devsisters.uz platformasining Sun‘iy Intellekt repetitoriman. 7 ta fandan (Ingliz tili, Arab tili, Rus tili, Ona tili, Kimyo, Geografiya, Sport) istalgan savolingizni bering, sizga jon deb tushuntirib beraman! ✨',
+      text: 'Assalomu alaykum! Men SisterAI — devsisters.uz platformasining Sun‘iy Intellekt repetitoriman. IT va Dasturlash, Ingliz tili, Arab tili, Kimyo, Ona tili, Geografiya, Rus tili va Sport yo‘nalishlaridan istalgan savolingizni bering! ✨',
       time: 'Hozir',
     },
   ]);
 
   const quickPrompts = [
+    'Web dasturlash (HTML, CSS, JS) ni nimadan boshlash kerak?',
     'Ingliz tilida Speakingni qanday rivojlantirsa bo‘ladi?',
-    'Kimyoda suv formulasining tuzilishi',
-    'Arab alifbosida nechta harf bor?',
-    'Ertalabki yengil badantarbiya mashqi',
+    'Kimyoda molekula va atom farqi nimada?',
+    'QR-kodli sertifikat qanday olinadi?',
   ];
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
   useEffect(() => {
-    if (isOpen) scrollToBottom();
-  }, [messages, isOpen]);
-
-  const generateAiReply = (question: string): string => {
-    const q = question.toLowerCase();
-
-    if (q.includes('ingliz') || q.includes('speaking') || q.includes('so\'z') || q.includes('soz')) {
-      return "Ingliz tilida Speakingni o‘stirish uchun har kuni kamida 15 daqiqa baland ovozda gapirish va Sevinch Hazratova ustozimizning darslaridagi yangi iboralarni ko‘zgu oldida takrorlash juda yaxshi natija beradi. Shuningdek, 'Amaliyot' bo‘limidagi lug‘at kartochkalaridan foydalanishingizni tavsiya qilaman!";
+    if (isOpen) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
+  }, [messages, isTyping, isOpen]);
 
-    if (q.includes('kimyo') || q.includes('suv') || q.includes('atom') || q.includes('formula')) {
-      return "Suv — ikkita Vodorod (H) va bitta Kislorod (O) atomining kovalent qutbli bog‘lanishidan hosil bo‘lgan modda (H2O). Farida Abdurashidova ustozimizning 1-darsida modda tuzilishi va atomlar haqida juda qiziqarli ko‘rgazmali misollar berilgan!";
-    }
+  const handleSend = async (customText?: string) => {
+    const text = (customText ?? input).trim();
+    if (!text || isTyping) return;
 
-    if (q.includes('arab') || q.includes('alifbo') || q.includes('harf') || q.includes('tajvid')) {
-      return "Arab alifbosida 28 ta harf mavjud bo‘lib, ularning barchasi undosh tovushlarni ifodalaydi. Harflar o‘ngdan chapga qarab yoziladi va so‘z boshida, o‘rtasida hamda oxirida o‘zgarib yoziladi. Mahliyo Lutfulloyeva ustozimizning video darsida bular amaliy ko‘rsatilgan!";
-    }
-
-    if (q.includes('sport') || q.includes('qomat') || q.includes('mashq') || q.includes('badantarbiya')) {
-      return "Qomatni tiklash uchun kuniga 10 daqiqa yelka va umurtqani to‘g‘rilovchi cho‘zilish mashqlarini bajarish zarur. Ilmira Mattiyeva ustozimiz tavsiya qilgan 'Qomatni tiklash' darsini ko‘rishni va har kuni kamida 1.5-2 litr toza suv ichishni unutmang!";
-    }
-
-    if (q.includes('ona tili') || q.includes('ot') || q.includes('sifat') || q.includes('grammatika')) {
-      return "Ona tilimizda Ot — shaxs, narsa va tushunchalarni bildirib 'Kim? Nima? Qayer?' so‘rog‘iga javob bo‘ladi. Sifat esa belgini bildirib 'Qanday? Qanaqa?' so‘rog‘iga javob beradi. Mubina Hikmatulloyeva ustozimiz bu mavzuni 'Ona tili' 1-darsida chuqur tahlil qilgan.";
-    }
-
-    return `Savolingiz uchun tashakkur! Ushbu mavzu bo‘yicha devsisters.uz saytidagi tegishli fan bo‘limiga o‘ting. Professional ustozlarimizning video darsliklari va interaktiv testlari sizga mavzuni mustahkam o‘rganishda yordam beradi. Yana savollaringiz bo‘lsa, bemalol so‘rang! 🌸`;
-  };
-
-  const handleSend = (textToSend?: string) => {
-    const text = textToSend || input;
-    if (!text.trim()) return;
+    const now = new Date();
+    const formattedTime = `${String(now.getHours()).padStart(2, '0')}:${String(
+      now.getMinutes()
+    ).padStart(2, '0')}`;
 
     const userMsg: Message = {
-      id: `u-${Date.now()}`,
+      id: `u-${now.getTime()}`,
       sender: 'user',
-      text: text.trim(),
-      time: 'Hozir',
+      text,
+      time: formattedTime,
     };
 
     setMessages((prev) => [...prev, userMsg]);
-    setInput('');
+    if (!customText) setInput('');
     setIsTyping(true);
 
-    setTimeout(() => {
-      const aiReply = generateAiReply(text);
-      const aiMsg: Message = {
-        id: `ai-${Date.now()}`,
-        sender: 'ai',
-        text: aiReply,
-        time: 'Hozir',
-      };
-      setMessages((prev) => [...prev, aiMsg]);
+    try {
+      const res = await fetch('/api/ai-tutor', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text }),
+      });
+
+      let replyText =
+        'Savolingiz qabul qilindi! Iltimos, darslar va testlar bo‘limidan foydalanib ko‘ring.';
+      if (res.ok) {
+        const data = (await res.json()) as { reply?: string };
+        if (data.reply) replyText = data.reply;
+      }
+
+      const replyDate = new Date();
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `ai-${replyDate.getTime()}`,
+          sender: 'ai',
+          text: replyText,
+          time: `${String(replyDate.getHours()).padStart(2, '0')}:${String(
+            replyDate.getMinutes()
+          ).padStart(2, '0')}`,
+        },
+      ]);
+    } catch {
+      const errDate = new Date();
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `ai-err-${errDate.getTime()}`,
+          sender: 'ai',
+          text: 'Aloqada vaqtinchalik uzilish yuz berdi. Birozdan so‘ng qayta urinib ko‘ring.',
+          time: `${String(errDate.getHours()).padStart(2, '0')}:${String(
+            errDate.getMinutes()
+          ).padStart(2, '0')}`,
+        },
+      ]);
+    } finally {
       setIsTyping(false);
-    }, 800);
+    }
   };
 
   return (
     <>
-      {/* Floating Launcher Button */}
+      {/* Floating Trigger Button */}
       <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="fixed bottom-6 right-6 z-50 p-4 rounded-3xl bg-gradient-to-tr from-pink-600 via-rose-500 to-purple-600 text-white shadow-2xl shadow-pink-600/40 hover:scale-110 active:scale-95 transition-all flex items-center gap-3 group"
-        title="SisterAI Repetitor bilan suhbat"
+        type="button"
+        onClick={() => setIsOpen(true)}
+        className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-40 group flex items-center gap-2 sm:gap-3 px-4 py-3 sm:px-5 sm:py-3.5 rounded-full bg-gradient-to-r from-pink-600 via-purple-600 to-indigo-600 hover:from-pink-500 hover:to-indigo-500 text-white font-bold shadow-2xl shadow-pink-600/40 border border-white/20 transition-all hover:scale-105 cursor-pointer"
+        aria-label="AI Repetitor yordamchini ochish"
       >
         <div className="relative">
-          <Bot className="w-6 h-6" />
-          <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-emerald-400 border-2 border-[#130a27] animate-pulse" />
+          <Bot className="w-6 h-6 animate-pulse" />
+          <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-emerald-400 border-2 border-[#160b2e]" />
         </div>
-        <span className="hidden sm:inline font-bold text-xs tracking-wide">
-          SisterAI Repetitor
-        </span>
+        <div className="hidden sm:block text-left">
+          <div className="text-xs font-extrabold flex items-center gap-1">
+            <span>SisterAI</span>
+            <Sparkles className="w-3 h-3 text-amber-300" />
+          </div>
+          <div className="text-[10px] text-purple-100/90 font-medium">
+            24/7 Repetitor
+          </div>
+        </div>
       </button>
 
-      {/* Chat Window Dialog */}
+      {/* Modal Chat Window */}
       {isOpen && (
-        <div className="fixed bottom-24 right-4 sm:right-6 z-50 w-[92vw] sm:w-[420px] h-[550px] max-h-[80vh] rounded-3xl bg-[#180f33] border border-purple-700/60 shadow-2xl flex flex-col overflow-hidden backdrop-blur-2xl animate-fade-in">
+        <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50 w-[92vw] max-w-md h-[80vh] max-h-[600px] bg-[#160c2e] border border-purple-700/60 rounded-3xl shadow-2xl shadow-black/80 flex flex-col overflow-hidden animate-fade-in">
           {/* Header */}
-          <div className="p-4 bg-[#140b2a] border-b border-purple-900/40 flex items-center justify-between">
+          <div className="px-5 py-4 bg-gradient-to-r from-[#231247] to-[#1a0c36] border-b border-purple-800/50 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-pink-500 to-purple-600 flex items-center justify-center text-white shadow-md">
-                <Sparkles className="w-5 h-5 text-white" />
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-pink-500 to-purple-600 flex items-center justify-center shadow-lg">
+                <Bot className="w-5 h-5 text-white" />
               </div>
               <div>
-                <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
-                  <span>SisterAI — Qizlar Repetitori</span>
-                </h3>
-                <p className="text-[11px] text-emerald-400 flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                  <span>24/7 faol ta‘lim yordamchisi</span>
+                <div className="flex items-center gap-1.5">
+                  <h4 className="font-bold text-white text-sm">
+                    SisterAI — aqlli repetitor
+                  </h4>
+                  <span className="px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[9px] font-bold">
+                    Onlayn
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-400">
+                  IT va 7 ta fan bo‘yicha shaxsiy yordamchi
                 </p>
               </div>
             </div>
 
             <button
+              type="button"
               onClick={() => setIsOpen(false)}
-              className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition-colors"
+              aria-label="Yopish"
+              className="w-8 h-8 rounded-full bg-white/5 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 flex items-center justify-center transition-colors cursor-pointer"
             >
-              <X className="w-5 h-5" />
+              <X className="w-4 h-4" />
             </button>
           </div>
 
-          {/* Messages Body */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
-            {messages.map((m) => {
-              const isAi = m.sender === 'ai';
-
-              return (
+          {/* Messages Area */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-[#120826]/60">
+            {messages.map((m) => (
+              <div
+                key={m.id}
+                className={`flex items-start gap-2.5 ${
+                  m.sender === 'user' ? 'flex-row-reverse' : ''
+                }`}
+              >
                 <div
-                  key={m.id}
-                  className={`flex items-start gap-2.5 ${isAi ? 'justify-start' : 'justify-end'}`}
+                  className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${
+                    m.sender === 'ai'
+                      ? 'bg-gradient-to-br from-pink-500 to-purple-600 text-white'
+                      : 'bg-purple-800 text-purple-200'
+                  }`}
                 >
-                  {isAi && (
-                    <div className="w-7 h-7 rounded-xl bg-pink-500/20 text-pink-300 flex items-center justify-center flex-shrink-0 mt-0.5">
-                      <Bot className="w-4 h-4" />
-                    </div>
-                  )}
-
-                  <div
-                    className={`max-w-[80%] p-3.5 rounded-2xl text-xs sm:text-sm leading-relaxed ${
-                      isAi
-                        ? 'bg-purple-900/30 border border-purple-700/40 text-slate-100 rounded-tl-sm'
-                        : 'bg-gradient-to-r from-pink-600 to-rose-600 text-white rounded-tr-sm shadow-md'
-                    }`}
-                  >
-                    <p>{m.text}</p>
-                    <span className="block text-[9px] opacity-60 text-right mt-1">{m.time}</span>
-                  </div>
-
-                  {!isAi && (
-                    <div className="w-7 h-7 rounded-xl bg-white/10 text-white flex items-center justify-center flex-shrink-0 mt-0.5">
-                      <User className="w-4 h-4" />
-                    </div>
+                  {m.sender === 'ai' ? (
+                    <Bot className="w-4 h-4" />
+                  ) : (
+                    <User className="w-4 h-4" />
                   )}
                 </div>
-              );
-            })}
+
+                <div
+                  className={`max-w-[82%] p-3.5 rounded-2xl text-xs sm:text-sm leading-relaxed whitespace-pre-wrap ${
+                    m.sender === 'ai'
+                      ? 'bg-[#1f133b] border border-purple-800/40 text-slate-200 rounded-tl-none'
+                      : 'bg-gradient-to-r from-pink-600 to-rose-600 text-white rounded-tr-none'
+                  }`}
+                >
+                  {m.text}
+                  <div
+                    className={`text-[10px] mt-1.5 ${
+                      m.sender === 'ai' ? 'text-slate-500' : 'text-pink-200/80'
+                    }`}
+                  >
+                    {m.time}
+                  </div>
+                </div>
+              </div>
+            ))}
 
             {isTyping && (
-              <div className="flex items-center gap-2 text-xs text-pink-300">
-                <Bot className="w-4 h-4" />
-                <span className="animate-pulse">SisterAI javob tayyorlamoqda...</span>
+              <div className="flex items-start gap-2.5">
+                <div className="w-7 h-7 rounded-full bg-gradient-to-br from-pink-500 to-purple-600 flex items-center justify-center">
+                  <Bot className="w-4 h-4 text-white" />
+                </div>
+                <div className="p-3.5 rounded-2xl bg-[#1f133b] border border-purple-800/40 rounded-tl-none flex items-center gap-1.5">
+                  <span
+                    className="w-1.5 h-1.5 rounded-full bg-pink-400 animate-bounce"
+                    style={{ animationDelay: '0ms' }}
+                  />
+                  <span
+                    className="w-1.5 h-1.5 rounded-full bg-pink-400 animate-bounce"
+                    style={{ animationDelay: '150ms' }}
+                  />
+                  <span
+                    className="w-1.5 h-1.5 rounded-full bg-pink-400 animate-bounce"
+                    style={{ animationDelay: '300ms' }}
+                  />
+                </div>
               </div>
             )}
+
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Quick Prompts */}
-          <div className="px-4 py-2 border-t border-purple-900/40 bg-[#140b2a]/60 overflow-x-auto flex items-center gap-2 scrollbar-none">
-            {quickPrompts.map((prompt, idx) => (
+          {/* Quick prompts */}
+          <div className="px-4 py-2 border-t border-purple-900/40 bg-[#150b2b] flex gap-1.5 overflow-x-auto scrollbar-none">
+            {quickPrompts.map((prompt, i) => (
               <button
-                key={idx}
+                type="button"
+                key={i}
                 onClick={() => handleSend(prompt)}
-                className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-pink-500/20 border border-white/5 hover:border-pink-500/30 text-[11px] text-slate-300 hover:text-pink-200 whitespace-nowrap transition-all"
+                className="px-3 py-1 rounded-full bg-white/5 hover:bg-pink-500/20 border border-white/10 text-[11px] text-slate-300 hover:text-pink-300 whitespace-nowrap transition-colors cursor-pointer"
               >
                 {prompt}
               </button>
             ))}
           </div>
 
-          {/* Input Footer */}
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              handleSend();
-            }}
-            className="p-3 bg-[#130a27] border-t border-purple-900/50 flex items-center gap-2"
-          >
+          {/* Input Box */}
+          <div className="p-3 bg-[#1c103b] border-t border-purple-800/50 flex items-center gap-2">
             <input
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Savolingizni yozing..."
-              className="flex-1 px-4 py-2.5 rounded-2xl bg-white/5 border border-white/10 text-white placeholder-slate-500 focus:outline-none focus:border-pink-500 text-xs sm:text-sm"
+              onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+              placeholder="Savol yozing..."
+              className="flex-1 bg-white/5 border border-purple-700/40 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-400 focus:outline-none focus:border-pink-500/60"
             />
             <button
-              type="submit"
-              disabled={!input.trim()}
-              className="p-2.5 rounded-2xl bg-pink-600 hover:bg-pink-500 disabled:opacity-50 text-white transition-all shadow-md shadow-pink-600/30 flex-shrink-0"
+              type="button"
+              onClick={() => handleSend()}
+              disabled={!input.trim() || isTyping}
+              aria-label="Yuborish"
+              className="w-10 h-10 rounded-xl bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-500 hover:to-rose-500 disabled:opacity-40 text-white flex items-center justify-center transition-all cursor-pointer"
             >
               <Send className="w-4 h-4" />
             </button>
-          </form>
+          </div>
         </div>
       )}
     </>

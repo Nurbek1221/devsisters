@@ -1,6 +1,27 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://uibaudggdyerfamvmobw.supabase.co';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVpYmF1ZGdnZHllcmZhbXZtb2J3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTUzNTU0NDEsImV4cCI6MjExMDkzMTQ0MX0.u8r177ctKUV6y0qjLUD8IGH2L_m5XcokrZbm_gE6tIc';
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() || '';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim() || '';
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+let cachedClient: SupabaseClient | null = null;
+
+export function isSupabaseConfigured(): boolean {
+  return Boolean(
+    supabaseUrl &&
+      supabaseAnonKey &&
+      !supabaseUrl.includes('placeholder') &&
+      !supabaseUrl.includes('your-project')
+  );
+}
+
+export function getSupabaseClient(): SupabaseClient | null {
+  if (!isSupabaseConfigured()) {
+    return null;
+  }
+  if (!cachedClient) {
+    cachedClient = createClient(supabaseUrl, supabaseAnonKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+  }
+  return cachedClient;
+}

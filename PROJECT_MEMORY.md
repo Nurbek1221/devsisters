@@ -1,159 +1,61 @@
-# 🧠 devsisters.uz — PROJECT MEMORY & ARCHITECTURE
+# devsisters.uz — Loyiha Xotirasi (Project Memory)
 
-> **MUHIM ESLATMA HAR QANDAY YANGI AI UCHUN:**  
-> Ushbu fayl `devsisters.uz` loyihasining to‘liq arxitekturasi, biznes mantiqi, ma’lumotlar bazasi, foydalanuvchi rollari va qat’iy qoidalarini o‘z ichiga oladi. Loyiha ustida ishlashdan oldin ushbu hujjatni to‘liq o‘qib chiqing!
-
----
-
-## 1. 📌 Loyiha Haqida va Asosiy Maqsad
-
-- **Loyiha nomi:** `devsisters.uz`
-- **Muallif / Egasi:** Nurbek Jabborov
-- **GitHub repozitoriy:** `https://github.com/Nurbek1221/devsisters` (`main` tarmog‘i)
-- **Rasmiy domen:** [https://devsisters.uz](https://devsisters.uz)
-- **Deploy usuli:** **AVTOMATIK GITHUB CI/CD → VERCEL** (`nurbek5/devsisters`)
-- **Missiyasi:** O‘zbekiston qizlariga zamonaviy, xavfsiz, sifatli va mutlaqo **bepul** bilim olish muhitini taqdim etuvchi milliy o‘quv platformasi.
+Ushbu hujjat **"Raqamli avlod qizlari"** tanlovi uchun ishlab chiqilgan **devsisters.uz** loyihasining barcha arxitekturaviy qarorlari, funksiyalari va texnik tuzilmasini jamlash uchun yaratilgan.
 
 ---
 
-## 2. 🛠️ Texnologiyalar Steki (Tech Stack)
-
-- **Freymvork:** Next.js 16.4 (App Router, Turbopack, React 19)
-- **Dizayn & Stillar:** Tailwind CSS v4.3, Plus Jakarta Sans shrifti
-- **Ma’lumotlar bazasi:** Supabase (PostgreSQL, Realtime) + LocalStorage (Offline fallback)
-- **Tillar:** TypeScript, TSX
-- **Asosiy kutubxonalar:**
-  - `@supabase/supabase-js` — MB bilan ishlash
-  - `lucide-react` — Zamonaviy vektor piktogrammalar
-  - `canvas-confetti` — Test va ro‘yxatdan o‘tgandagi bayramona animatsiyalar
+## 1. Loyiha Maqsadi va G‘oyasi
+* **Nomi**: `devsisters.uz`
+* **Muallif**: **Nurbek Jabborov** (`© 2026 devsisters.uz o‘quv platformasi`)
+* **Yo‘nalishi**: O‘zbekistondagi qizlar uchun bepul IT, tillar va fanlarga oid video darslar, testlar, mashqlar, SisterAI repetitor va jonli hamjamiyat platformasi.
+* **Dizayn uslubi**: Zamonaviy To‘q Binafsha va Pushti (`#0d071d`, `#ec4899`, `#a855f7`) neon-aksentli glassmorphism, Mobile-first moslashuvchan interfeys.
 
 ---
 
-## 3. 👩‍🏫 7 Ta Fan va 7 Ta Professional Ustoz
-
-Platformada 7 ta asosiy fan va ularning ustozlari belgilangan (`src/lib/data.ts` va Supabase `teachers` jadvali):
-
-| № | Fan nomi | Slug | Ustozning F.I.SH | Tajriba & Mutaxassislik |
-|---|----------|------|------------------|--------------------------|
-| 1 | **Ingliz tili** | `ingliz-tili` | **Hazratova Sevinch** | IELTS 8.0, 5 yillik pedagogik tajriba, Speaking mutaxassisi |
-| 2 | **Arab tili** | `arab-tili` | **Lutfulloyeva Mahliyo** | Misr Al-Azhar metodikasi, Tajvid va fonetika bo‘yicha 4 yillik tajriba |
-| 3 | **Sport va Salomatlik** | `sport` | **Mattiyeva Ilmira** | Professional fitnes murabbiyi, qomatni to‘g‘rilash va gimnastika |
-| 4 | **Ona tili va Adabiyot** | `ona-tili` | **Hikmatulloyeva Mubina** | Oliy toifali ona tili ustozi, 6 yillik tajriba, milliy grammatika |
-| 5 | **Geografiya** | `geografiya` | **Ergashboyeva Gulnoza** | Xalqaro olimpiadalar sovrindori ustozi, vizual xaritalar |
-| 6 | **Rus tili** | `rus-tili` | **Normo‘minova Shaxrizoda** | Rus tilini xorijiy til sifatida o‘rgatish bo‘yicha 4 yillik tajriba |
-| 7 | **Kimyo** | `kimyo` | **Abdurashidova Farida** | Kimyo fani o‘qituvchisi, qiziqarli laboratoriya tajribalari |
-
----
-
-## 4. 🧭 Sayt Strukturasi va Sahifalar (Pages & Routing)
-
-### 1) Asosiy Bosh Sahifa (`src/app/page.tsx` — `/`)
-- **`Hero.tsx`**: Loyiha shiori, «Darslarni Boshlash» va «Bilimni Sinash» tugmalari.
-- **`TeachersSection.tsx`**: 7 ta ustoz kartochkalari va fan bo‘yicha tezkor filtrlar.
-- **`FeaturesSection.tsx`**: Video darslar, testlar, amaliyot va kabinetdagi muloqot imkoniyatlari.
-- **`LessonsSection.tsx`**: YouTube HD pleyerli darslar ro‘yxati.
-- **`WebinarsSection.tsx`**: Ustozlar bilan jonli onlayn muloqot va vebinarlar taqvimi.
-- **`QuizSection.tsx`**: Interaktiv testlar va 70%+ natijada sertifikat olish imkoniyati.
-- **`PracticeSection.tsx`**: Til fanlari uchun flip-kartochkalar va sport gimnastikasi mashqlari.
-- **`RoadmapSection.tsx`**: Loyihaning rivojlanish bosqichlari (1-bosqichdan 4-bosqichgacha).
-- **`Footer.tsx`**: Platforma havolalari va ma’lumotlar.
-- **Modallar:**
-  - `VideoModal.tsx`: YouTube 16:9 HD Cinema video pleyeri.
-  - `CertificateModal.tsx`: Rasmiy QR-kodli, muhrli va imzolangan chop etiluvchi hashamatli sertifikat.
-  - `AiTutorModal.tsx`: 24/7 rejimdagi **SisterAI** repetitor bot.
-  - `OnboardingModal.tsx`: Saytga birinchi marta kirgan mehmonlar uchun 2-bosqichli ro‘yxatdan o‘tish va fan tanlash modali.
-  > ⚠️ **DIQQAT:** «Hamjamiyat va Jonli Chat» bloki asosiy sahifadan olib tashlangan va faqat avtorizatsiyadan o‘tgan shaxslar uchun shaxsiy kabinetlarga joylashtirilgan.
-
-### 2) Yagona Autentifikatsiya Portali (`src/app/login/page.tsx` — `/login`)
-- O‘quvchi, O‘qituvchi va Super Admin uchun bitta umumiy kirish joyi.
-- Kirish (`mode === 'login'`) va Ro‘yxatdan o‘tish (`mode === 'register'`) rejimi.
-- Ro‘yxatdan o‘tishda o‘quvchi o‘zi o‘rganmoqchi bo‘lgan fanni tanlaydi.
-- ⚠️ Ommaviy ishlab chiqarish uchun 1 bosishda kiruvchi demo tugmalar to‘liq olib tashlangan.
-
-### 3) O‘quvchi Shaxsiy Kabineti (`src/app/student/page.tsx` — `/student`)
-- **Qat’iy 1 ta fanga biriktirilganlik (Single-subject isolation):** O‘quvchi faqat o‘zi tanlagan yagona fanning darslari, testlari va amaliyotini ko‘radi (boshqa fanlar chalkashmasligi uchun).
-- **Sertifikat qulfi (Smart Locking):** Sertifikat faqat tanlangan fanning barcha videodarslari ko‘rilganda (`100%`) va testidan kamida `70%` ball to‘plangandagina ochiladi. Aks holda qulflangan holatda talablarni ko‘rsatadi.
-- **Jonli Chat:** Ustozlar va boshqa o‘quvchi qizlar bilan to‘g‘ridan-to‘g‘ri savol-javob qiluvchi `CommunityChat` komponenti.
-
-### 4) O‘qituvchi Kabineti (`src/app/teacher/page.tsx` — `/teacher`)
-- Ustoz faqat o‘zining faniga tegishli videodarslarni ko‘radi, yangi YouTube video dars yuklaydi yoki mavjudlarini tahrirlaydi/o‘chiradi.
-- O‘quvchilar bilan muloqot va chat menyusi (`CommunityChat`).
-
-### 5) Super Admin Boshqaruv Paneli (`src/app/admin/page.tsx` — `/admin`)
-- **Tizim statistikasi:** Jami o‘quvchilar soni, faol ustozlar va video darsliklar soni.
-- **Fanlar bo‘yicha o‘quvchilar taqsimoti:** Har bir fanga qancha o‘quvchi a’zo bo‘lganligini onlayn hisoblovchi 7 ustunli jonli tahlil bloki.
-- **Ustozlarni boshqarish:** Yangi ustoz qo‘shilganda uning kirish hisobi (`email` va `password`) avtomatik yaratiladi va unga o‘qituvchi roli biriktiriladi.
-- **Foydalanuvchilar va Parollar jadvali:** Barcha foydalanuvchilarning roli, tanlangan fani, telefoni va parolini ochiq ko‘rish, tahrirlash hamda o‘chirish imkoniyati.
-- **Jonli Chat va Moderatsiya:** Barcha o‘quvchilar va ustozlar xabarlarini nazorat qilish, nomaqbul xabarlarni o‘chirish.
+## 2. Arxitektura va Texnologiyalar
+* **Frontend**: Next.js 16 (`App Router`, `cacheComponents: true`), React 19, TypeScript, Tailwind CSS v4, Lucide React icons, `qrcode`, `canvas-confetti`.
+* **Shrift va SEO**: `next/font/google` (`Plus_Jakarta_Sans`), `src/app/robots.ts`, `src/app/sitemap.ts`, `src/app/opengraph-image.tsx`, `EducationalOrganization` JSON-LD.
+* **Autentifikatsiya va Xavfsizlik (`src/lib/server/auth-crypto.ts`, `src/proxy.ts`)**:
+  * Parollar Node `crypto.scryptSync` + 16-bayt tasodifiy salt (`scrypt$salt$hash`) bilan xeshlanadi (ochiq parol bazada ham, Admin panelda ham saqlanmaydi va ko‘rsatilmaydi).
+  * Sessiyalar HMAC-SHA256 imzolangan `HttpOnly` cookie (`devsisters_session`) orqali `/api/auth/login`, `/api/auth/register`, `/api/auth/logout`, `/api/auth/me` route handlerlarida tekshiriladi.
+  * `src/proxy.ts` orqali `/admin`, `/teacher`, `/student` marshrutlari himoyalanadi.
+* **Saqlash va Ma’lumotlar Bazasi (`src/lib/server/db.ts`, `src/lib/storage.ts`, `supabase/schema.sql`)**:
+  * **Vercel Blob (`devsisters-media`)**: Jonli bulut xotira va holat saqlash (`devsisters-db/state.json`), dars videolari (`lesson-videos/*`) va profil rasmlari (`avatars/*`) uchun asosiy saqlash tizimi.
+  * **Supabase (ixtiyoriy moslik)**: `NEXT_PUBLIC_SUPABASE_URL` va `NEXT_PUBLIC_SUPABASE_ANON_KEY` mavjud bo‘lganda `lesson-videos` va `avatars` Storage bucketlari bilan avtomatik ishlaydi (`supabase/schema.sql` faylida to‘liq jadvallar va RLS siyosatlari keltirilgan).
+* **Observability (`@vercel/functions` `metric()`)**:
+  * Server API route handlerlarda (`auth.login`, `auth.register`, `auth.profile_update`, `media.upload`, `media.upload_token`, `lessons.mutation`, `admin.teachers_mutation`, `admin.users_mutation`, `student.progress_update`, `certificates.issue`, `community.activity`, `ai_tutor.reply`) maxsus metrikalar yoziladi.
 
 ---
 
-## 5. 🗄️ Ma’lumotlar Bazasi Strukturasi (Supabase)
-
-Supabase loyihasi: `https://gupkydkavvszqawvqukw.supabase.co`
-Barcha jadvallarda `id` ustuni **UUID (`gen_random_uuid()`)** turida:
-
-1. **`teachers`:**
-   - `id` (UUID, Primary Key)
-   - `name` (TEXT)
-   - `subject` (TEXT)
-   - `slug` (TEXT, unique)
-   - `bio` (TEXT)
-   - `experience` (TEXT)
-   - `avatar_url` (TEXT)
-   - `telegram` (TEXT)
-   - `display_order` (INTEGER)
-
-2. **`lessons`:**
-   - `id` (UUID, Primary Key)
-   - `title` (TEXT)
-   - `description` (TEXT)
-   - `video_url` (TEXT — YouTube URL)
-   - `duration` (TEXT)
-   - `subject_slug` (TEXT)
-   - `order_num` (INTEGER)
-
-3. **`quizzes`:**
-   - `id` (UUID, Primary Key)
-   - `subject_slug` (TEXT)
-   - `title` (TEXT)
-   - `questions` (JSONB)
-
-4. **`users`:**
-   - `id` (UUID, Primary Key)
-   - `name` (TEXT)
-   - `email` (TEXT, unique)
-   - `password` (TEXT)
-   - `role` (TEXT: `'student' | 'teacher' | 'admin'`)
-   - `subject_slug` (TEXT — tanlangan fani)
-   - `phone` (TEXT)
-   - `points` (INTEGER)
-
-5. **`community_posts`:**
-   - `id` (UUID, Primary Key)
-   - `author_name` (TEXT)
-   - `title` (TEXT)
-   - `content` (TEXT)
-   - `likes` (INTEGER)
-   - `created_at` (TIMESTAMP)
-
-> 💡 **Eslatma:** Tarmoq uzilsa yoki Supabase cheklovi bo‘lsa, tizim avtomatik tarzda `src/lib/data.ts` va `localStorage` keshiga o‘tadi, sayt hech qachon to‘xtab qolmaydi.
+## 3. Yo‘nalishlar (8 ta fan) va Ustozlar
+1. **IT va Dasturlash** — Karimova Aziza (`it-dasturlash`) *(yangi qo‘shilgan yo‘nalish)*
+2. **Ingliz tili** — Hazratova Sevinch (`ingliz-tili`)
+3. **Arab tili** — Lutfulloyeva Mahliyo (`arab-tili`)
+4. **Sport** — Mattiyeva Ilmira (`sport`)
+5. **Ona tili** — Hikmatulloyeva Mubina (`ona-tili`)
+6. **Geografiya** — Ergashboyeva Gulnoza (`geografiya`)
+7. **Rus tili** — Normo‘minova Shaxrizoda (`rus-tili`)
+8. **Kimyo** — Abdurashidova Farida (`kimyo`)
 
 ---
 
-## 6. 📱 Mobil Moslashuvchanlik Qoidalari (Mobile Responsiveness)
-
-1. **Gorizontal skroll bo‘lmasligi:** `src/app/layout.tsx` dagi `<body>` elementi `w-full overflow-x-hidden relative` klasslariga ega bo‘lishi shart.
-2. **Kategoriya chiplari:** Fanlar va darslar tugmalari telefonda gorizontal silliq surilishi (`overflow-x-auto pb-2 scrollbar-none sm:flex-wrap`) kerak.
-3. **Flex elementlar:** Kichik ekranlarda (320px–375px) matnlar qisqarishi yoki sig‘ishi uchun `break-words`, `min-w-0`, `truncate` qo‘llanilgan.
-4. **Jadvallar:** Admin panelidagi foydalanuvchilar jadvali `overflow-x-auto` konteyneriga o‘ralgan.
+## 4. Asosiy Funksiyalar va Modullar
+* **Mahalliy Video Dars Tizimi (YouTube olib tashlandi)**:
+  * O‘qituvchi (`/teacher`) va Admin (`/admin`) panellarida `VideoLessonUploader` orqali telefon yoki kompyuter xotirasidan to‘g‘ridan-to‘g‘ri video (`MP4`, `WebM`, `MOV`, maks 100 MB) yuklanadi (`URL.createObjectURL` preview + avtomatik davomiylik).
+  * Talabalar va bosh sahifada videolar HTML5 `<video controls playsInline preload="metadata" />` pleyerida ochiladi.
+* **Profil Rasmlarini Yuklash (`AvatarUploader`)**:
+  * Barcha rollar (O‘quvchi, Ustoz, Admin) va Ro‘yxatdan o‘tish oynasi telefon/kompyuterdan (`PNG`, `JPG`, `WebP`, maks 5 MB) rasm yuklab saqlay oladi.
+* **QR-kodli Rasmiy Sertifikat va Tekshiruv (`/verify/[certId]`)**:
+  * Video darslar va test (`>= 70%`) yakunlangach `/api/certificates` orqali noyob ID (`DS-2026-...`) va haqiqiy QR-kod generatsiya qilinadi.
+* **Reyting (`StudentLeaderboard`) va SisterAI (`/api/ai-tutor`)**:
+  * Dars yakunlash (+20 ball) va testdan o‘tish (+50 ball) real reytingni oshiradi.
+  * SisterAI jonli darslar va fanlar asosida savollarga javob beradi.
 
 ---
 
-## 7. 🔒 Xavfsizlik va Kelajakdagi AI Uchun Qat'iy Qoidalar
-
-1. **Hech qachon Supabase `anon` kaliti o‘rniga `service_role` kalitini frontend kodiga qo‘shmang.**
-2. **Yangi o‘qituvchi yoki dars qo‘shganda `id` maydoniga ixtiyoriy string yozmang** — Supabase UUID kutadi, `id` maydoni kiritilmasa Supabase o‘zi avtomatik generatsiya qiladi.
-3. **O‘quvchi kabinetida 7 ta fanning hammasini birdan ko‘rsatib yubormang** — o‘quvchi o‘zi tanlagan bitta fanni chuqur o‘rganishi uchun unga faqat o‘zining fani ko‘rinishi lozim.
-4. **Har qanday kod o‘zgarishidan so‘ng terminalda `npm run build` buyrug‘ini ishlatib xatolik yo‘qligiga ishonch hosil qiling.**
-5. **Foydalanuvchi bilan doim samimiy, tushunarli va professional o‘zbek tilida muloqot qiling.**
+## 5. Sinov Kirish Ma’lumotlari
+* **Admin**: `admin@devsisters.uz` / `admin123` -> `/admin`
+* **IT Ustoz**: `aziza@devsisters.uz` / `teacher123` -> `/teacher`
+* **Ustoz (Ingliz tili)**: `sevinch@devsisters.uz` / `teacher123` -> `/teacher`
+* **O‘quvchi**: `madina@devsisters.uz` / `student123` -> `/student`
+* **Namuna Sertifikat Tekshiruvi**: `/verify/DS-2026-0001`

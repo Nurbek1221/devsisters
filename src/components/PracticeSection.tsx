@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { PracticeItem } from '../lib/types';
-import { Dumbbell, Languages, Sparkles, Volume2, CheckCircle2 } from 'lucide-react';
+import { Dumbbell, Languages, Volume2, CheckCircle2 } from 'lucide-react';
 
 interface PracticeSectionProps {
   items: PracticeItem[];

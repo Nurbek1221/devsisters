@@ -7,29 +7,29 @@ import {
   BookOpen,
   Video,
   Award,
-  Users,
   Menu,
   X,
   Dumbbell,
   LogIn,
   User as UserIcon,
   LogOut,
-  GraduationCap,
-  Shield,
 } from 'lucide-react';
-import { getStoredUser, setStoredUser } from '@/lib/auth';
-import { User } from '@/lib/types';
+import { getStoredUser, logoutUser } from '@/lib/auth';
+import { PublicUser } from '@/lib/types';
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [currentUser, setCurrentUser] = useState<PublicUser | null>(null);
 
   useEffect(() => {
-    setCurrentUser(getStoredUser());
+    const timer = setTimeout(() => {
+      setCurrentUser(getStoredUser());
+    }, 0);
+    return () => clearTimeout(timer);
   }, []);
 
-  const handleLogout = () => {
-    setStoredUser(null);
+  const handleLogout = async () => {
+    await logoutUser();
     setCurrentUser(null);
     window.location.reload();
   };

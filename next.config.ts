@@ -2,6 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   /* config options here */
+  serverExternalPackages: ["@vercel/functions", "@vercel/blob", "@vercel/oidc", "qrcode"],
   cacheComponents: true,
   partialPrefetching: true,
   turbopack: {

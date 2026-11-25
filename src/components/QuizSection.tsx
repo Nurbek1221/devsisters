@@ -51,7 +51,7 @@ export default function QuizSection({ quizzes, onViewCertificate }: QuizSectionP
           origin: { y: 0.6 },
           colors: ['#e24b80', '#a855f7', '#38bdf8', '#fbbf24'],
         });
-      } catch (e) {
+      } catch {
         // ignore in non-browser
       }
     }

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Calendar, Video, Clock, Check, Bell, ExternalLink, Sparkles } from 'lucide-react';
+import { Calendar, Clock, Check, Bell, ExternalLink } from 'lucide-react';
 
 interface Webinar {
   id: string;
