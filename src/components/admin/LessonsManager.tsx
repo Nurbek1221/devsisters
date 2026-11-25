@@ -301,6 +301,7 @@ export default function LessonsManager({
               </div>
 
               <VideoLessonUploader
+                key={editing.id || 'new-lesson'}
                 subjectSlug={editing.subject_slug || 'it-dasturlash'}
                 currentVideoUrl={editing.video_url}
                 onUploadingChange={setUploadingVideo}

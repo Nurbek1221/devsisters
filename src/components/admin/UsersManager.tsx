@@ -278,6 +278,22 @@ export default function UsersManager({
                 className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-purple-700/40 text-sm text-white"
               />
 
+              <div>
+                <label className="text-xs font-bold text-slate-300 block mb-1">
+                  Kirish Logini (Email)
+                </label>
+                <input
+                  type="email"
+                  required
+                  value={editing.email || ''}
+                  onChange={(e) =>
+                    setEditing({ ...editing, email: e.target.value })
+                  }
+                  placeholder="email@devsisters.uz"
+                  className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-purple-700/40 text-sm text-white"
+                />
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <select
                   value={editing.role || 'student'}

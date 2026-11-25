@@ -24,6 +24,27 @@ export interface Teacher {
   avatar_url: string;
   telegram?: string;
   display_order?: number;
+  login_email?: string; // Admin panel uchun bog'langan login (maxfiy emas)
+}
+
+export interface PracticeItem {
+  id: string;
+  subject_slug: string;
+  category: 'vocabulary' | 'exercise' | 'workout';
+  title: string;
+  target_user_id?: string;
+  target_student_name?: string;
+  created_by?: string;
+  created_at?: string;
+  data: {
+    word?: string;
+    translation?: string;
+    pronunciation?: string;
+    example?: string;
+    steps?: string[];
+    reps?: string;
+    tip?: string;
+  };
 }
 
 export interface Lesson {
@@ -52,22 +73,6 @@ export interface Quiz {
   title: string;
   description: string;
   questions: QuizQuestion[];
-}
-
-export interface PracticeItem {
-  id: string;
-  subject_slug: string;
-  category: 'vocabulary' | 'exercise' | 'workout';
-  title: string;
-  data: {
-    word?: string;
-    translation?: string;
-    pronunciation?: string;
-    example?: string;
-    steps?: string[];
-    reps?: string;
-    tip?: string;
-  };
 }
 
 export interface CommunityPost {

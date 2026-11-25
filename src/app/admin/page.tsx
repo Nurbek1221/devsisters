@@ -12,6 +12,7 @@ import {
   MessageSquare,
   BarChart3,
   ArrowLeft,
+  Languages,
 } from 'lucide-react';
 import {
   getStoredUser,
@@ -20,7 +21,7 @@ import {
   updateUserProfile,
 } from '@/lib/auth';
 import { INITIAL_TEACHERS, INITIAL_LESSONS } from '@/lib/data';
-import { Lesson, PublicUser, Teacher } from '@/lib/types';
+import { Lesson, PracticeItem, PublicUser, Teacher } from '@/lib/types';
 import VideoModal from '@/components/VideoModal';
 import CommunityChat from '@/components/CommunityChat';
 import AvatarUploader from '@/components/AvatarUploader';
@@ -28,8 +29,17 @@ import AdminStats from '@/components/admin/AdminStats';
 import TeachersManager from '@/components/admin/TeachersManager';
 import LessonsManager from '@/components/admin/LessonsManager';
 import UsersManager from '@/components/admin/UsersManager';
+import PracticeManager, {
+  PracticeStudentOption,
+} from '@/components/teacher/PracticeManager';
 
-type AdminTab = 'overview' | 'teachers' | 'lessons' | 'users' | 'community';
+type AdminTab =
+  | 'overview'
+  | 'teachers'
+  | 'lessons'
+  | 'practice'
+  | 'users'
+  | 'community';
 
 export default function AdminDashboardPage() {
   const router = useRouter();
@@ -40,6 +50,7 @@ export default function AdminDashboardPage() {
   const [teachers, setTeachers] = useState<Teacher[]>(INITIAL_TEACHERS);
   const [lessons, setLessons] = useState<Lesson[]>(INITIAL_LESSONS);
   const [users, setUsers] = useState<PublicUser[]>([]);
+  const [practiceItems, setPracticeItems] = useState<PracticeItem[]>([]);
   const [previewLesson, setPreviewLesson] = useState<Lesson | null>(null);
 
   const loadAdminData = useCallback(async () => {
@@ -56,9 +67,11 @@ export default function AdminDashboardPage() {
     setIsCheckingAuth(false);
 
     try {
-      const [platRes, usersRes] = await Promise.all([
+      const [platRes, teachersRes, usersRes, pracRes] = await Promise.all([
         fetch('/api/platform', { cache: 'no-store' }),
+        fetch('/api/teachers', { cache: 'no-store' }),
         fetch('/api/users', { cache: 'no-store' }),
+        fetch('/api/practice?include_students=1', { cache: 'no-store' }),
       ]);
 
       if (platRes.ok) {
@@ -70,9 +83,21 @@ export default function AdminDashboardPage() {
         if (plat.lessons?.length) setLessons(plat.lessons);
       }
 
+      if (teachersRes.ok) {
+        const tData = (await teachersRes.json()) as { teachers?: Teacher[] };
+        if (tData.teachers?.length) setTeachers(tData.teachers);
+      }
+
       if (usersRes.ok) {
         const uData = (await usersRes.json()) as { users?: PublicUser[] };
         if (uData.users) setUsers(uData.users);
+      }
+
+      if (pracRes.ok) {
+        const pData = (await pracRes.json()) as {
+          practice_items?: PracticeItem[];
+        };
+        if (pData.practice_items) setPracticeItems(pData.practice_items);
       }
     } catch {
       // Fallback kept
@@ -86,6 +111,19 @@ export default function AdminDashboardPage() {
     return () => clearTimeout(timer);
   }, [loadAdminData]);
 
+  const handleTeachersSynced = async (nextTeachers: Teacher[]) => {
+    setTeachers(nextTeachers);
+    try {
+      const usersRes = await fetch('/api/users', { cache: 'no-store' });
+      if (usersRes.ok) {
+        const uData = (await usersRes.json()) as { users?: PublicUser[] };
+        if (uData.users) setUsers(uData.users);
+      }
+    } catch {
+      // ignore
+    }
+  };
+
   const handleLogout = async () => {
     await logoutUser();
     router.push('/');
@@ -98,6 +136,16 @@ export default function AdminDashboardPage() {
       </div>
     );
   }
+
+  const studentOptions: PracticeStudentOption[] = users
+    .filter((u) => u.role === 'student')
+    .map((u) => ({
+      id: u.id,
+      name: u.name,
+      email: u.email,
+      subject_slug: u.subject_slug,
+      avatar_url: u.avatar_url,
+    }));
 
   return (
     <div className="min-h-screen bg-[#0d071d] text-slate-100 flex flex-col">
@@ -167,8 +215,21 @@ export default function AdminDashboardPage() {
               { id: 'overview' as AdminTab, label: 'Statistika', icon: BarChart3 },
               { id: 'teachers' as AdminTab, label: 'Mentorlar', icon: BookOpen },
               { id: 'lessons' as AdminTab, label: 'Video Darslar', icon: Video },
-              { id: 'users' as AdminTab, label: 'Foydalanuvchilar', icon: Users },
-              { id: 'community' as AdminTab, label: 'Hamjamiyat', icon: MessageSquare },
+              {
+                id: 'practice' as AdminTab,
+                label: 'Lug‘at & Mashqlar',
+                icon: Languages,
+              },
+              {
+                id: 'users' as AdminTab,
+                label: 'Foydalanuvchilar',
+                icon: Users,
+              },
+              {
+                id: 'community' as AdminTab,
+                label: 'Hamjamiyat',
+                icon: MessageSquare,
+              },
             ].map((tab) => (
               <button
                 type="button"
@@ -194,7 +255,9 @@ export default function AdminDashboardPage() {
         {activeTab === 'teachers' && (
           <TeachersManager
             teachers={teachers}
-            onTeachersChange={setTeachers}
+            onTeachersChange={(next) => {
+              void handleTeachersSynced(next);
+            }}
           />
         )}
 
@@ -204,6 +267,17 @@ export default function AdminDashboardPage() {
             teachers={teachers}
             onLessonsChange={setLessons}
             onPreviewLesson={setPreviewLesson}
+          />
+        )}
+
+        {activeTab === 'practice' && (
+          <PracticeManager
+            items={practiceItems}
+            students={studentOptions}
+            teachers={teachers}
+            defaultSubjectSlug={teachers[0]?.slug || 'it-dasturlash'}
+            isAdmin
+            onItemsChange={setPracticeItems}
           />
         )}
 

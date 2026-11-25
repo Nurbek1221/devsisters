@@ -16,8 +16,8 @@ import {
   Play,
   Users,
   BookOpen,
+  Languages,
 } from 'lucide-react';
-import LessonVideoThumbnail from '@/components/LessonVideoThumbnail';
 import {
   getStoredUser,
   logoutUser,
@@ -25,11 +25,15 @@ import {
   updateUserProfile,
 } from '@/lib/auth';
 import { INITIAL_LESSONS, INITIAL_TEACHERS } from '@/lib/data';
-import { Lesson, PublicUser, Teacher } from '@/lib/types';
+import { Lesson, PracticeItem, PublicUser, Teacher } from '@/lib/types';
 import VideoModal from '@/components/VideoModal';
 import CommunityChat from '@/components/CommunityChat';
 import AvatarUploader from '@/components/AvatarUploader';
 import VideoLessonUploader from '@/components/VideoLessonUploader';
+import LessonVideoThumbnail from '@/components/LessonVideoThumbnail';
+import PracticeManager, {
+  PracticeStudentOption,
+} from '@/components/teacher/PracticeManager';
 
 export default function TeacherDashboardPage() {
   const router = useRouter();
@@ -38,9 +42,11 @@ export default function TeacherDashboardPage() {
 
   const [teachers, setTeachers] = useState<Teacher[]>(INITIAL_TEACHERS);
   const [lessons, setLessons] = useState<Lesson[]>(INITIAL_LESSONS);
-  const [activeTab, setActiveTab] = useState<'lessons' | 'community'>(
-    'lessons'
-  );
+  const [practiceItems, setPracticeItems] = useState<PracticeItem[]>([]);
+  const [students, setStudents] = useState<PracticeStudentOption[]>([]);
+  const [activeTab, setActiveTab] = useState<
+    'lessons' | 'practice' | 'community'
+  >('lessons');
 
   // Video Modal & Editing state
   const [previewLesson, setPreviewLesson] = useState<Lesson | null>(null);
@@ -66,14 +72,27 @@ export default function TeacherDashboardPage() {
     setIsCheckingAuth(false);
 
     try {
-      const res = await fetch('/api/platform', { cache: 'no-store' });
-      if (res.ok) {
-        const data = (await res.json()) as {
+      const [platRes, pracRes] = await Promise.all([
+        fetch('/api/platform', { cache: 'no-store' }),
+        fetch('/api/practice?include_students=1', { cache: 'no-store' }),
+      ]);
+
+      if (platRes.ok) {
+        const data = (await platRes.json()) as {
           teachers?: Teacher[];
           lessons?: Lesson[];
         };
         if (data.teachers?.length) setTeachers(data.teachers);
         if (data.lessons?.length) setLessons(data.lessons);
+      }
+
+      if (pracRes.ok) {
+        const pData = (await pracRes.json()) as {
+          practice_items?: PracticeItem[];
+          students?: PracticeStudentOption[];
+        };
+        if (pData.practice_items) setPracticeItems(pData.practice_items);
+        if (pData.students) setStudents(pData.students);
       }
     } catch {
       // Fallback kept
@@ -247,7 +266,7 @@ export default function TeacherDashboardPage() {
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
         {/* Profile Card with Avatar Upload */}
-        <div className="bg-[#160c2e] border border-purple-800/40 rounded-3xl p-6 flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div className="bg-[#160c2e] border border-purple-800/40 rounded-3xl p-6 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
           <div className="flex flex-col sm:flex-row sm:items-center gap-5">
             <AvatarUploader
               currentUrl={user.avatar_url || currentTeacherInfo?.avatar_url}
@@ -266,17 +285,17 @@ export default function TeacherDashboardPage() {
                 {user.name}
               </h2>
               <p className="text-xs sm:text-sm text-slate-400 mt-0.5">
-                {currentTeacherInfo?.experience || 'Tajribali mentor'} • Jami
-                darslar: {myLessons.length} ta
+                {currentTeacherInfo?.experience || 'Tajribali mentor'} • Darslar:{' '}
+                {myLessons.length} ta
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 p-1.5 rounded-2xl bg-white/5 border border-white/10 self-start md:self-center">
+          <div className="flex items-center gap-2 p-1.5 rounded-2xl bg-white/5 border border-white/10 overflow-x-auto scrollbar-none self-start lg:self-center">
             <button
               type="button"
               onClick={() => setActiveTab('lessons')}
-              className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer ${
+              className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
                 activeTab === 'lessons'
                   ? 'bg-pink-600 text-white shadow'
                   : 'text-slate-400 hover:text-white'
@@ -287,8 +306,20 @@ export default function TeacherDashboardPage() {
             </button>
             <button
               type="button"
+              onClick={() => setActiveTab('practice')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
+                activeTab === 'practice'
+                  ? 'bg-emerald-600 text-white shadow'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Languages className="w-3.5 h-3.5" />
+              <span>Lug‘at & Mashqlar ({practiceItems.length})</span>
+            </button>
+            <button
+              type="button"
               onClick={() => setActiveTab('community')}
-              className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer ${
+              className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
                 activeTab === 'community'
                   ? 'bg-purple-600 text-white shadow'
                   : 'text-slate-400 hover:text-white'
@@ -369,6 +400,18 @@ export default function TeacherDashboardPage() {
           </div>
         )}
 
+        {/* Per-student Vocabulary & Exercise Manager */}
+        {activeTab === 'practice' && (
+          <PracticeManager
+            items={practiceItems}
+            students={students}
+            teachers={teachers}
+            defaultSubjectSlug={teacherSubjectSlug}
+            isAdmin={user.role === 'admin'}
+            onItemsChange={setPracticeItems}
+          />
+        )}
+
         {activeTab === 'community' && (
           <CommunityChat
             currentUser={user}
@@ -384,7 +427,7 @@ export default function TeacherDashboardPage() {
         onClose={() => setPreviewLesson(null)}
       />
 
-      {/* Add/Edit Lesson Modal with Local File Video Upload */}
+      {/* Add/Edit Lesson Modal */}
       {showEditModal && editingLesson && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 animate-fade-in overflow-y-auto">
           <div className="w-full max-w-2xl bg-[#160c2e] border border-purple-700/60 rounded-3xl p-6 sm:p-8 shadow-2xl relative my-8">
@@ -510,6 +553,7 @@ export default function TeacherDashboardPage() {
                   Video Manbasi (YouTube havola yoki Tel / PC xotirasi)
                 </label>
                 <VideoLessonUploader
+                  key={editingLesson.id || 'new-lesson'}
                   subjectSlug={editingLesson.subject_slug || teacherSubjectSlug}
                   currentVideoUrl={editingLesson.video_url}
                   onUploadingChange={setIsUploadingVideo}

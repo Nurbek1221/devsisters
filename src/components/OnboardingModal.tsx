@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Sparkles,
@@ -17,7 +17,6 @@ import {
 import { registerStudent } from '@/lib/auth';
 import { INITIAL_TEACHERS } from '@/lib/data';
 import { Teacher } from '@/lib/types';
-import AvatarUploader from './AvatarUploader';
 import confetti from 'canvas-confetti';
 
 interface OnboardingModalProps {
@@ -33,19 +32,39 @@ export default function OnboardingModal({
 }: OnboardingModalProps) {
   const router = useRouter();
   const [step, setStep] = useState<1 | 2>(1);
-  const teachers: Teacher[] =
-    propTeachers && propTeachers.length > 0 ? propTeachers : INITIAL_TEACHERS;
+  const [liveTeachers, setLiveTeachers] = useState<Teacher[] | null>(null);
 
-  // Form fields
+  const teachers: Teacher[] =
+    liveTeachers && liveTeachers.length > 0
+      ? liveTeachers
+      : propTeachers && propTeachers.length > 0
+        ? propTeachers
+        : INITIAL_TEACHERS;
+
+  // Form fields (avatar upload intentionally omitted for fast student signup)
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [avatarUrl, setAvatarUrl] = useState('');
   const [selectedSubject, setSelectedSubject] =
     useState<string>('it-dasturlash');
-  const [avatarUploading, setAvatarUploading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!isOpen) return;
+    let active = true;
+    fetch('/api/teachers', { cache: 'no-store' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { teachers?: Teacher[] } | null) => {
+        if (active && data?.teachers?.length) {
+          setLiveTeachers(data.teachers);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -72,8 +91,7 @@ export default function OnboardingModal({
         email.trim().toLowerCase(),
         password.trim(),
         '',
-        selectedSubject,
-        avatarUrl || undefined
+        selectedSubject
       );
 
       if (res.error) {
@@ -107,7 +125,7 @@ export default function OnboardingModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 animate-fade-in overflow-y-auto">
       <div className="relative w-full max-w-2xl bg-[#160c2e] border border-purple-700/50 rounded-3xl overflow-hidden shadow-2xl shadow-purple-900/50 my-8">
         {/* Progress Bar */}
         <div className="h-1.5 w-full bg-white/5 flex">
@@ -157,21 +175,9 @@ export default function OnboardingModal({
             <form onSubmit={handleNextStep} className="space-y-4">
               <p className="text-sm text-slate-300 leading-relaxed mb-4">
                 devsisters.uz platformasiga xush kelibsiz! Shaxsiy kabinetingizni
-                oching, xohlasangiz profil rasmingizni ham hoziroq yuklang.
+                oching — keyin istalgan vaqt kabinetingiz ichidan rasmingizni
+                o‘zgartirishingiz mumkin.
               </p>
-
-              {/* Optional Avatar Upload */}
-              <div className="p-3.5 rounded-2xl bg-white/[0.03] border border-purple-800/40">
-                <AvatarUploader
-                  currentUrl={avatarUrl}
-                  name={name || 'O‘quvchi'}
-                  folder="students"
-                  size="sm"
-                  label="Profil rasmi (ixtiyoriy)"
-                  onBusyChange={setAvatarUploading}
-                  onUploaded={(url) => setAvatarUrl(url)}
-                />
-              </div>
 
               <div>
                 <label className="text-xs font-bold text-slate-300 block mb-1.5">
@@ -226,12 +232,9 @@ export default function OnboardingModal({
 
                 <button
                   type="submit"
-                  disabled={avatarUploading}
-                  className="w-full sm:w-auto px-8 py-3.5 rounded-2xl bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-500 hover:to-rose-500 disabled:opacity-60 text-white font-bold text-sm shadow-xl shadow-pink-600/30 flex items-center justify-center gap-2 transition-all cursor-pointer"
+                  className="w-full sm:w-auto px-8 py-3.5 rounded-2xl bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-500 hover:to-rose-500 text-white font-bold text-sm shadow-xl shadow-pink-600/30 flex items-center justify-center gap-2 transition-all cursor-pointer"
                 >
-                  <span>
-                    {avatarUploading ? 'Rasm yuklanmoqda...' : 'Keyingi qadam'}
-                  </span>
+                  <span>Keyingi qadam</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
               </div>

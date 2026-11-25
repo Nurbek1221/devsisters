@@ -68,6 +68,9 @@ export default function StudentDashboardPage() {
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
 
   const [activeTab, setActiveTab] = useState<TabId>('lessons');
+  const [lessonsViewScope, setLessonsViewScope] = useState<'subject' | 'all'>(
+    'subject'
+  );
   const [completedLessons, setCompletedLessons] = useState<string[]>([]);
   const [quizPassed, setQuizPassed] = useState(false);
   const [bestQuizScore, setBestQuizScore] = useState<number | undefined>(
@@ -87,9 +90,13 @@ export default function StudentDashboardPage() {
   const subjectLessons = lessons.filter(
     (l) => l.subject_slug === studentSubject
   );
+  const displayedLessons =
+    lessonsViewScope === 'all' ? lessons : subjectLessons;
   const subjectQuiz = quizzes.find((q) => q.subject_slug === studentSubject);
   const subjectPractice = practiceItems.filter(
-    (p) => p.subject_slug === studentSubject
+    (p) =>
+      p.target_user_id === user?.id ||
+      (!p.target_user_id && p.subject_slug === studentSubject)
   );
 
   const loadDashboard = useCallback(async () => {
@@ -110,9 +117,10 @@ export default function StudentDashboardPage() {
     setIsCheckingAuth(false);
 
     try {
-      const [platRes, progRes] = await Promise.all([
+      const [platRes, progRes, pracRes] = await Promise.all([
         fetch('/api/platform', { cache: 'no-store' }),
         fetch('/api/progress', { cache: 'no-store' }),
+        fetch('/api/practice', { cache: 'no-store' }),
       ]);
 
       if (platRes.ok) {
@@ -128,6 +136,15 @@ export default function StudentDashboardPage() {
         if (plat.quizzes?.length) setQuizzes(plat.quizzes);
         if (plat.practice_items?.length) setPracticeItems(plat.practice_items);
         if (plat.leaderboard?.length) setLeaderboard(plat.leaderboard);
+      }
+
+      if (pracRes.ok) {
+        const prac = (await pracRes.json()) as {
+          practice_items?: PracticeItem[];
+        };
+        if (prac.practice_items) {
+          setPracticeItems(prac.practice_items);
+        }
       }
 
       if (progRes.ok) {
@@ -490,93 +507,126 @@ export default function StudentDashboardPage() {
 
         {/* Tab 1: Lessons */}
         {activeTab === 'lessons' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {subjectLessons.length === 0 ? (
-              <div className="col-span-full py-16 text-center bg-[#160c2e] border border-purple-800/40 rounded-3xl">
-                <Video className="w-10 h-10 text-pink-400/50 mx-auto mb-3" />
-                <p className="text-slate-300 font-bold">
-                  Hozircha video darslar qo‘shilmagan.
-                </p>
+          <div className="space-y-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setLessonsViewScope('subject')}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold cursor-pointer transition-all ${
+                    lessonsViewScope === 'subject'
+                      ? 'bg-pink-600 text-white shadow'
+                      : 'bg-white/5 text-slate-300 hover:bg-white/10'
+                  }`}
+                >
+                  Mening fanim ({subjectLessons.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLessonsViewScope('all')}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold cursor-pointer transition-all ${
+                    lessonsViewScope === 'all'
+                      ? 'bg-purple-600 text-white shadow'
+                      : 'bg-white/5 text-slate-300 hover:bg-white/10'
+                  }`}
+                >
+                  Barcha fanlar videolari ({lessons.length})
+                </button>
               </div>
-            ) : (
-              subjectLessons.map((lesson) => {
-                const isDone = completedLessons.includes(lesson.id);
+            </div>
 
-                return (
-                  <div
-                    key={lesson.id}
-                    className={`rounded-3xl bg-[#160c2e] border overflow-hidden flex flex-col justify-between transition-all duration-300 shadow-xl ${
-                      isDone
-                        ? 'border-emerald-500/40'
-                        : 'border-purple-800/40 hover:border-pink-500/50'
-                    }`}
-                  >
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {displayedLessons.length === 0 ? (
+                <div className="col-span-full py-16 text-center bg-[#160c2e] border border-purple-800/40 rounded-3xl">
+                  <Video className="w-10 h-10 text-pink-400/50 mx-auto mb-3" />
+                  <p className="text-slate-300 font-bold">
+                    Hozircha video darslar qo‘shilmagan.
+                  </p>
+                </div>
+              ) : (
+                displayedLessons.map((lesson) => {
+                  const isDone = completedLessons.includes(lesson.id);
+                  const lessonTeacher = teachers.find(
+                    (t) => t.slug === lesson.subject_slug
+                  );
+
+                  return (
                     <div
-                      onClick={() => setActiveVideoLesson(lesson)}
-                      className="relative h-44 w-full bg-gradient-to-br from-[#231247] to-[#120826] cursor-pointer group overflow-hidden flex items-center justify-center"
+                      key={lesson.id}
+                      className={`rounded-3xl bg-[#160c2e] border overflow-hidden flex flex-col justify-between transition-all duration-300 shadow-xl ${
+                        isDone
+                          ? 'border-emerald-500/40'
+                          : 'border-purple-800/40 hover:border-pink-500/50'
+                      }`}
                     >
-                      <LessonVideoThumbnail
-                        videoUrl={lesson.video_url}
-                        title={lesson.title}
-                      />
-                      <div className="absolute inset-0 bg-black/35 group-hover:bg-black/20 transition-colors" />
+                      <div
+                        onClick={() => setActiveVideoLesson(lesson)}
+                        className="relative h-44 w-full bg-gradient-to-br from-[#231247] to-[#120826] cursor-pointer group overflow-hidden flex items-center justify-center"
+                      >
+                        <LessonVideoThumbnail
+                          videoUrl={lesson.video_url}
+                          title={lesson.title}
+                        />
+                        <div className="absolute inset-0 bg-black/35 group-hover:bg-black/20 transition-colors" />
 
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <div className="w-12 h-12 rounded-full bg-gradient-to-r from-pink-600 to-rose-600 text-white flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-                          <Play className="w-5 h-5 fill-white ml-0.5" />
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <div className="w-12 h-12 rounded-full bg-gradient-to-r from-pink-600 to-rose-600 text-white flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                            <Play className="w-5 h-5 fill-white ml-0.5" />
+                          </div>
+                        </div>
+
+                        <div className="absolute top-3 left-3 flex items-center gap-1.5">
+                          <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-[#140b2a]/90 text-pink-300 border border-pink-500/30">
+                            {lessonTeacher?.subject || lesson.subject_slug} •{' '}
+                            {lesson.order_num}-dars
+                          </span>
+                        </div>
+
+                        <div className="absolute bottom-3 right-3 px-2 py-0.5 rounded-lg bg-black/80 text-[11px] font-bold text-slate-200 flex items-center gap-1">
+                          <Clock className="w-3 h-3 text-pink-400" />
+                          <span>{lesson.duration}</span>
                         </div>
                       </div>
 
-                      <div className="absolute top-3 left-3 flex items-center gap-1.5">
-                        <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-[#140b2a]/90 text-pink-300 border border-pink-500/30">
-                          {lesson.order_num}-dars
-                        </span>
-                      </div>
+                      <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
+                        <div>
+                          <h3 className="text-base font-bold text-white leading-snug mb-2">
+                            {lesson.title}
+                          </h3>
+                          <p className="text-xs text-slate-400 line-clamp-2">
+                            {lesson.description}
+                          </p>
+                        </div>
 
-                      <div className="absolute bottom-3 right-3 px-2 py-0.5 rounded-lg bg-black/80 text-[11px] font-bold text-slate-200 flex items-center gap-1">
-                        <Clock className="w-3 h-3 text-pink-400" />
-                        <span>{lesson.duration}</span>
-                      </div>
-                    </div>
+                        <div className="flex items-center justify-between pt-3 border-t border-purple-900/40">
+                          <button
+                            type="button"
+                            onClick={() => setActiveVideoLesson(lesson)}
+                            className="text-xs font-bold text-pink-400 hover:underline flex items-center gap-1 cursor-pointer"
+                          >
+                            <Play className="w-3.5 h-3.5" />
+                            <span>Darsni ko‘rish</span>
+                          </button>
 
-                    <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
-                      <div>
-                        <h3 className="text-base font-bold text-white leading-snug mb-2">
-                          {lesson.title}
-                        </h3>
-                        <p className="text-xs text-slate-400 line-clamp-2">
-                          {lesson.description}
-                        </p>
-                      </div>
-
-                      <div className="flex items-center justify-between pt-3 border-t border-purple-900/40">
-                        <button
-                          type="button"
-                          onClick={() => setActiveVideoLesson(lesson)}
-                          className="text-xs font-bold text-pink-400 hover:underline flex items-center gap-1 cursor-pointer"
-                        >
-                          <Play className="w-3.5 h-3.5" />
-                          <span>Darsni ko‘rish</span>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => handleToggleLessonComplete(lesson.id)}
-                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                            isDone
-                              ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
-                              : 'bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10'
-                          }`}
-                        >
-                          <CheckCircle2 className="w-3.5 h-3.5" />
-                          <span>{isDone ? 'Tugatildi ✓' : 'Tugatish'}</span>
-                        </button>
+                          <button
+                            type="button"
+                            onClick={() => handleToggleLessonComplete(lesson.id)}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                              isDone
+                                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                                : 'bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10'
+                            }`}
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            <span>{isDone ? 'Tugatildi ✓' : 'Tugatish'}</span>
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                );
-              })
-            )}
+                  );
+                })
+              )}
+            </div>
           </div>
         )}
 
@@ -600,6 +650,7 @@ export default function StudentDashboardPage() {
           <StudentPracticeGrid
             items={subjectPractice}
             subjectLabel={currentTeacher?.subject || studentSubject}
+            currentUserId={user.id}
           />
         )}
 

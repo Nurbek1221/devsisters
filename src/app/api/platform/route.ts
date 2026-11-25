@@ -5,11 +5,20 @@ import { LeaderboardEntry } from '@/lib/types';
 export async function GET() {
   const state = await readPlatformState();
 
-  const teachers = [...state.teachers].sort(
-    (a, b) => (a.display_order || 99) - (b.display_order || 99)
-  );
+  const teachers = [...state.teachers]
+    .sort((a, b) => (a.display_order || 99) - (b.display_order || 99))
+    .map((t) => ({
+      ...t,
+      login_email: undefined,
+    }));
+
   const lessons = [...state.lessons].sort(
     (a, b) => (a.order_num || 1) - (b.order_num || 1)
+  );
+
+  // Public homepage only exposes general (non-individual) practice items
+  const publicPractice = state.practice_items.filter(
+    (p) => !p.target_user_id
   );
 
   const leaderboard: LeaderboardEntry[] = state.users
@@ -30,7 +39,7 @@ export async function GET() {
       teachers,
       lessons,
       quizzes: state.quizzes,
-      practice_items: state.practice_items,
+      practice_items: publicPractice,
       community_posts: state.community_posts,
       leaderboard,
     },

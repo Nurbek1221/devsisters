@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { Teacher } from '@/lib/types';
-import { Plus, Edit, Trash2, Save, X } from 'lucide-react';
+import { Plus, Edit, Trash2, Save, X, Mail, Lock } from 'lucide-react';
 import AvatarUploader from '@/components/AvatarUploader';
 
 interface TeachersManagerProps {
@@ -10,11 +10,16 @@ interface TeachersManagerProps {
   onTeachersChange: (next: Teacher[]) => void;
 }
 
+type EditableTeacher = Partial<Teacher> & {
+  login_email?: string;
+  login_password?: string;
+};
+
 export default function TeachersManager({
   teachers,
   onTeachersChange,
 }: TeachersManagerProps) {
-  const [editing, setEditing] = useState<Partial<Teacher> | null>(null);
+  const [editing, setEditing] = useState<EditableTeacher | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -28,6 +33,8 @@ export default function TeachersManager({
       experience: '',
       avatar_url: '',
       telegram: '',
+      login_email: '',
+      login_password: '',
     });
   };
 
@@ -87,7 +94,8 @@ export default function TeachersManager({
             Mentorlar va Fanlar ({teachers.length} ta)
           </h3>
           <p className="text-xs text-slate-400">
-            Ustoz profili va rasmini telefon/PC xotirasidan yangilang.
+            Ustoz qo‘shing, login/parolini belgilang va barcha sahifalarda bir
+            vaqtda yangilang.
           </p>
         </div>
 
@@ -127,6 +135,13 @@ export default function TeachersManager({
               </div>
             </div>
 
+            {teacher.login_email && (
+              <div className="px-3 py-2 rounded-xl bg-white/[0.04] border border-purple-800/30 flex items-center gap-2 text-xs text-purple-200 truncate">
+                <Mail className="w-3.5 h-3.5 text-pink-400 shrink-0" />
+                <span className="truncate">{teacher.login_email}</span>
+              </div>
+            )}
+
             <p className="text-xs text-slate-300 line-clamp-2">{teacher.bio}</p>
 
             <div className="flex items-center justify-between pt-3 border-t border-purple-900/40">
@@ -134,12 +149,16 @@ export default function TeachersManager({
                 type="button"
                 onClick={() => {
                   setError('');
-                  setEditing({ ...teacher });
+                  setEditing({
+                    ...teacher,
+                    login_email: teacher.login_email || '',
+                    login_password: '',
+                  });
                 }}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/5 hover:bg-purple-500/20 text-xs font-bold text-purple-300 cursor-pointer"
               >
                 <Edit className="w-3.5 h-3.5" />
-                <span>Tahrirlash</span>
+                <span>Tahrirlash / Login</span>
               </button>
 
               <button
@@ -156,7 +175,7 @@ export default function TeachersManager({
       </div>
 
       {editing && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 animate-fade-in overflow-y-auto">
           <div className="w-full max-w-lg bg-[#160c2e] border border-purple-700/60 rounded-3xl p-6 sm:p-8 shadow-2xl relative my-8">
             <button
               type="button"
@@ -210,7 +229,7 @@ export default function TeachersManager({
                   onChange={(e) =>
                     setEditing({ ...editing, subject: e.target.value })
                   }
-                  placeholder="Fan nomi"
+                  placeholder="Fan nomi (masalan: Fizika)"
                   className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-purple-700/40 text-sm text-white"
                 />
                 <input
@@ -219,9 +238,47 @@ export default function TeachersManager({
                   onChange={(e) =>
                     setEditing({ ...editing, slug: e.target.value })
                   }
-                  placeholder="Slug (it-dasturlash)"
+                  placeholder="Slug (ixtiyoriy: fizika)"
                   className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-purple-700/40 text-sm text-white"
                 />
+              </div>
+
+              {/* Teacher Account Credentials Section */}
+              <div className="p-3.5 rounded-2xl bg-purple-900/20 border border-purple-700/40 space-y-2.5">
+                <div className="text-xs font-bold text-pink-300">
+                  Ustoz Kabinetiga Kirish Login va Paroli
+                </div>
+                <div className="relative">
+                  <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                  <input
+                    type="email"
+                    value={editing.login_email || ''}
+                    onChange={(e) =>
+                      setEditing({ ...editing, login_email: e.target.value })
+                    }
+                    placeholder="ustoz@devsisters.uz (bo‘sh qolsa avtomatik yaratiladi)"
+                    className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-white/5 border border-purple-700/40 text-xs sm:text-sm text-white"
+                  />
+                </div>
+                <div className="relative">
+                  <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                  <input
+                    type="password"
+                    value={editing.login_password || ''}
+                    onChange={(e) =>
+                      setEditing({
+                        ...editing,
+                        login_password: e.target.value,
+                      })
+                    }
+                    placeholder={
+                      editing.id
+                        ? 'Yangi parol (o‘zgartirmaslik uchun bo‘sh qoldiring)'
+                        : 'Parol (min 6 belgi, bo‘sh qolsa avtomatik)'
+                    }
+                    className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-white/5 border border-purple-700/40 text-xs sm:text-sm text-white"
+                  />
+                </div>
               </div>
 
               <input
@@ -230,7 +287,7 @@ export default function TeachersManager({
                 onChange={(e) =>
                   setEditing({ ...editing, experience: e.target.value })
                 }
-                placeholder="Tajriba (IELTS 8.0 | 5 yil)"
+                placeholder="Tajriba (masalan: IELTS 8.0 | 5 yil)"
                 className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-purple-700/40 text-sm text-white"
               />
 

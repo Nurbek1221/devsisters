@@ -1,48 +1,5 @@
 import { PublicUser, User } from './types';
 
-export interface DemoAccountPreset {
-  id: string;
-  name: string;
-  email: string;
-  demoPass: string;
-  role: 'admin' | 'teacher' | 'student';
-  subject_slug?: string;
-}
-
-export const DEMO_USERS: DemoAccountPreset[] = [
-  {
-    id: 'u-admin',
-    name: 'Nurbek Jabborov (Admin)',
-    email: 'admin@devsisters.uz',
-    demoPass: 'admin123',
-    role: 'admin',
-  },
-  {
-    id: 'u-teacher-8',
-    name: 'Karimova Aziza (IT ustoz)',
-    email: 'aziza@devsisters.uz',
-    demoPass: 'teacher123',
-    role: 'teacher',
-    subject_slug: 'it-dasturlash',
-  },
-  {
-    id: 'u-teacher-1',
-    name: 'Hazratova Sevinch (Ingliz tili)',
-    email: 'sevinch@devsisters.uz',
-    demoPass: 'teacher123',
-    role: 'teacher',
-    subject_slug: 'ingliz-tili',
-  },
-  {
-    id: 'u-student-1',
-    name: 'Madina Rahimova (O‘quvchi)',
-    email: 'madina@devsisters.uz',
-    demoPass: 'student123',
-    role: 'student',
-    subject_slug: 'ingliz-tili',
-  },
-];
-
 const USER_STORAGE_KEY = 'devsisters_active_user';
 
 export function getStoredUser(): PublicUser | null {
@@ -51,7 +8,6 @@ export function getStoredUser(): PublicUser | null {
   if (!userJson) return null;
   try {
     const parsed = JSON.parse(userJson) as User;
-    // Strip any legacy plaintext password from cache
     const { password: _ignored, ...safeUser } = parsed;
     void _ignored;
     return safeUser;

@@ -20,7 +20,7 @@ export async function GET() {
   const state = await readPlatformState();
   return NextResponse.json(
     { users: state.users.map(sanitizeUser) },
-    { headers: { 'Cache-Control': 'no-store' } }
+    { headers: { 'Cache-Control': 'no-store, max-age=0' } }
   );
 }
 
@@ -37,7 +37,10 @@ export async function PATCH(request: Request) {
       new_password?: string;
     };
     if (!body.id) {
-      return NextResponse.json({ error: 'Foydalanuvchi ID kerak.' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Foydalanuvchi ID kerak.' },
+        { status: 400 }
+      );
     }
 
     if (body.new_password && body.new_password.trim().length < 6) {
@@ -47,27 +50,60 @@ export async function PATCH(request: Request) {
       );
     }
 
-    const updated = await mutatePlatformState((draft) => {
+    const result = await mutatePlatformState<{
+      status: number;
+      error?: string;
+      user?: User;
+    }>((draft) => {
       const idx = draft.users.findIndex((u) => u.id === body.id);
-      if (idx === -1) return { state: draft, result: null };
+      if (idx === -1) {
+        return {
+          state: draft,
+          result: { status: 404, error: 'Foydalanuvchi topilmadi.' },
+        };
+      }
 
       const current = draft.users[idx];
+      let nextEmail = current.email;
+      if (typeof body.email === 'string' && body.email.trim()) {
+        const cleanEmail = body.email.trim().toLowerCase();
+        const duplicate = draft.users.some(
+          (u, i) => i !== idx && u.email.toLowerCase() === cleanEmail
+        );
+        if (duplicate) {
+          return {
+            state: draft,
+            result: {
+              status: 409,
+              error: `"${cleanEmail}" email manzili allaqachon band.`,
+            },
+          };
+        }
+        nextEmail = cleanEmail;
+      }
+
+      const nextName = body.name?.trim() || current.name;
+      const nextAvatar =
+        typeof body.avatar_url === 'string' && body.avatar_url.trim()
+          ? body.avatar_url.trim()
+          : current.avatar_url;
+      const nextRole =
+        body.role && ['admin', 'teacher', 'student'].includes(body.role)
+          ? body.role
+          : current.role;
+      const nextSubjectSlug =
+        typeof body.subject_slug === 'string'
+          ? body.subject_slug.trim()
+          : current.subject_slug;
+
       draft.users[idx] = {
         ...current,
-        name: body.name?.trim() || current.name,
+        name: nextName,
+        email: nextEmail,
         phone: typeof body.phone === 'string' ? body.phone.trim() : current.phone,
-        role:
-          body.role && ['admin', 'teacher', 'student'].includes(body.role)
-            ? body.role
-            : current.role,
-        subject_slug:
-          typeof body.subject_slug === 'string'
-            ? body.subject_slug.trim()
-            : current.subject_slug,
-        avatar_url:
-          typeof body.avatar_url === 'string' && body.avatar_url.trim()
-            ? body.avatar_url.trim()
-            : current.avatar_url,
+        role: nextRole,
+        subject_slug: nextSubjectSlug,
+        avatar_url: nextAvatar,
         points:
           typeof body.points === 'number' && body.points >= 0
             ? body.points
@@ -81,18 +117,33 @@ export async function PATCH(request: Request) {
             ? hashPassword(body.new_password.trim())
             : current.password,
       };
-      return { state: draft, result: draft.users[idx] };
+
+      if (nextRole === 'teacher' && nextSubjectSlug) {
+        const tIdx = draft.teachers.findIndex(
+          (t) => t.slug === nextSubjectSlug
+        );
+        if (tIdx !== -1) {
+          draft.teachers[tIdx] = {
+            ...draft.teachers[tIdx],
+            name: nextName,
+            avatar_url: nextAvatar || draft.teachers[tIdx].avatar_url,
+          };
+        }
+      }
+
+      return { state: draft, result: { status: 200, user: draft.users[idx] } };
     });
 
-    if (!updated) {
+    if (result.status !== 200 || !result.user) {
+      metric('admin.users_mutation', 1, { action: 'update', outcome: 'error' });
       return NextResponse.json(
-        { error: 'Foydalanuvchi topilmadi.' },
-        { status: 404 }
+        { error: result.error || 'Yangilashda xatolik.' },
+        { status: result.status }
       );
     }
 
     metric('admin.users_mutation', 1, { action: 'update', outcome: 'success' });
-    return NextResponse.json({ user: sanitizeUser(updated) });
+    return NextResponse.json({ user: sanitizeUser(result.user) });
   } catch (error) {
     metric('admin.users_mutation', 1, { action: 'update', outcome: 'error' });
     return NextResponse.json(

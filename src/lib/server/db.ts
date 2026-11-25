@@ -18,7 +18,7 @@ import {
   INITIAL_QUIZZES,
   INITIAL_TEACHERS,
 } from '../data';
-import { hashPassword } from './auth-crypto';
+import { hashPassword, verifyPassword } from './auth-crypto';
 
 const LEGACY_STATE_BLOB_PATHNAME = 'devsisters-db/state.json';
 const STATE_PREFIX = 'devsisters-db/state/';
@@ -93,7 +93,121 @@ const INITIAL_CHAT_SEED: ChatMessage[] = [
   },
 ];
 
+export const DEFAULT_TEACHER_ACCOUNTS: Array<{
+  userId: string;
+  teacherId: string;
+  name: string;
+  email: string;
+  defaultPassword: string;
+  subject_slug: string;
+  avatar_url: string;
+  phone: string;
+}> = [
+  {
+    userId: 'u-teacher-1',
+    teacherId: 't-1',
+    name: 'Hazratova Sevinch',
+    email: 'sevinch@devsisters.uz',
+    defaultPassword: 'sevinch2026',
+    subject_slug: 'ingliz-tili',
+    avatar_url:
+      'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=600',
+    phone: '+998 91 234 56 78',
+  },
+  {
+    userId: 'u-teacher-2',
+    teacherId: 't-2',
+    name: 'Lutfulloyeva Mahliyo',
+    email: 'mahliyo@devsisters.uz',
+    defaultPassword: 'mahliyo2026',
+    subject_slug: 'arab-tili',
+    avatar_url:
+      'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=600',
+    phone: '+998 93 345 67 89',
+  },
+  {
+    userId: 'u-teacher-3',
+    teacherId: 't-3',
+    name: 'Mattiyeva Ilmira',
+    email: 'ilmira@devsisters.uz',
+    defaultPassword: 'ilmira2026',
+    subject_slug: 'sport',
+    avatar_url:
+      'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&q=80&w=600',
+    phone: '+998 94 456 78 90',
+  },
+  {
+    userId: 'u-teacher-4',
+    teacherId: 't-4',
+    name: 'Hikmatulloyeva Mubina',
+    email: 'mubina@devsisters.uz',
+    defaultPassword: 'mubina2026',
+    subject_slug: 'ona-tili',
+    avatar_url:
+      'https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&q=80&w=600',
+    phone: '+998 90 444 11 22',
+  },
+  {
+    userId: 'u-teacher-5',
+    teacherId: 't-5',
+    name: 'Ergashboyeva Gulnoza',
+    email: 'gulnoza@devsisters.uz',
+    defaultPassword: 'gulnoza2026',
+    subject_slug: 'geografiya',
+    avatar_url:
+      'https://images.unsplash.com/photo-1567532939604-b6b5b0db2604?auto=format&fit=crop&q=80&w=600',
+    phone: '+998 91 555 22 33',
+  },
+  {
+    userId: 'u-teacher-6',
+    teacherId: 't-6',
+    name: 'Normo‘minova Shaxrizoda',
+    email: 'shaxrizoda@devsisters.uz',
+    defaultPassword: 'shaxrizoda2026',
+    subject_slug: 'rus-tili',
+    avatar_url:
+      'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=600',
+    phone: '+998 93 666 33 44',
+  },
+  {
+    userId: 'u-teacher-7',
+    teacherId: 't-7',
+    name: 'Abdurashidova Farida',
+    email: 'farida@devsisters.uz',
+    defaultPassword: 'farida2026',
+    subject_slug: 'kimyo',
+    avatar_url:
+      'https://images.unsplash.com/photo-1508214751196-bcfd4ca60f91?auto=format&fit=crop&q=80&w=600',
+    phone: '+998 94 777 44 55',
+  },
+  {
+    userId: 'u-teacher-8',
+    teacherId: 't-8',
+    name: 'Karimova Aziza',
+    email: 'aziza@devsisters.uz',
+    defaultPassword: 'aziza2026',
+    subject_slug: 'it-dasturlash',
+    avatar_url:
+      'https://images.unsplash.com/photo-1573497019940-1c28c88b4f3e?auto=format&fit=crop&q=80&w=600',
+    phone: '+998 97 777 12 34',
+  },
+];
+
 function createInitialUsers(): User[] {
+  const seededTeachers: User[] = DEFAULT_TEACHER_ACCOUNTS.map((acc) => ({
+    id: acc.userId,
+    name: acc.name,
+    email: acc.email,
+    password: hashPassword(acc.defaultPassword),
+    role: 'teacher',
+    subject_slug: acc.subject_slug,
+    avatar_url: acc.avatar_url,
+    phone: acc.phone,
+    points: 520,
+    is_verified: true,
+    created_at: '2026-01-12T08:00:00.000Z',
+  }));
+
   return [
     {
       id: 'u-admin',
@@ -108,62 +222,7 @@ function createInitialUsers(): User[] {
       is_verified: true,
       created_at: '2026-01-10T08:00:00.000Z',
     },
-    {
-      id: 'u-teacher-1',
-      name: 'Hazratova Sevinch',
-      email: 'sevinch@devsisters.uz',
-      password: hashPassword('teacher123'),
-      role: 'teacher',
-      subject_slug: 'ingliz-tili',
-      avatar_url:
-        'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=600',
-      phone: '+998 91 234 56 78',
-      points: 540,
-      is_verified: true,
-      created_at: '2026-01-12T08:00:00.000Z',
-    },
-    {
-      id: 'u-teacher-2',
-      name: 'Lutfulloyeva Mahliyo',
-      email: 'mahliyo@devsisters.uz',
-      password: hashPassword('teacher123'),
-      role: 'teacher',
-      subject_slug: 'arab-tili',
-      avatar_url:
-        'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=600',
-      phone: '+998 93 345 67 89',
-      points: 510,
-      is_verified: true,
-      created_at: '2026-01-12T08:00:00.000Z',
-    },
-    {
-      id: 'u-teacher-3',
-      name: 'Mattiyeva Ilmira',
-      email: 'ilmira@devsisters.uz',
-      password: hashPassword('teacher123'),
-      role: 'teacher',
-      subject_slug: 'sport',
-      avatar_url:
-        'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&q=80&w=600',
-      phone: '+998 94 456 78 90',
-      points: 520,
-      is_verified: true,
-      created_at: '2026-01-12T08:00:00.000Z',
-    },
-    {
-      id: 'u-teacher-8',
-      name: 'Karimova Aziza',
-      email: 'aziza@devsisters.uz',
-      password: hashPassword('teacher123'),
-      role: 'teacher',
-      subject_slug: 'it-dasturlash',
-      avatar_url:
-        'https://images.unsplash.com/photo-1573497019940-1c28c88b4f3e?auto=format&fit=crop&q=80&w=600',
-      phone: '+998 97 777 12 34',
-      points: 580,
-      is_verified: true,
-      created_at: '2026-01-15T08:00:00.000Z',
-    },
+    ...seededTeachers,
     {
       id: 'u-student-1',
       name: 'Madina Rahimova',
@@ -294,9 +353,46 @@ function normalizeState(raw: Partial<PlatformState>): PlatformState {
       ? raw.certificates
       : base.certificates;
 
+  const users: User[] =
+    Array.isArray(raw.users) && raw.users.length > 0
+      ? raw.users.map((u) => ({ ...u }))
+      : base.users;
+
+  // Ensure every active built-in teacher has a user account with an individual password
+  for (const acc of DEFAULT_TEACHER_ACCOUNTS) {
+    const teacherActive = teachers.some((t) => t.slug === acc.subject_slug);
+    if (!teacherActive) continue;
+
+    const existingIdx = users.findIndex(
+      (u) =>
+        u.id === acc.userId ||
+        (u.subject_slug === acc.subject_slug && u.role === 'teacher')
+    );
+    if (existingIdx === -1) {
+      users.push({
+        id: acc.userId,
+        name: acc.name,
+        email: acc.email,
+        password: hashPassword(acc.defaultPassword),
+        role: 'teacher',
+        subject_slug: acc.subject_slug,
+        avatar_url: acc.avatar_url,
+        phone: acc.phone,
+        points: 520,
+        is_verified: true,
+        created_at: '2026-01-12T08:00:00.000Z',
+      });
+    } else if (verifyPassword('teacher123', users[existingIdx].password).valid) {
+      // Upgrade legacy shared 'teacher123' password to teacher's individual default password
+      users[existingIdx] = {
+        ...users[existingIdx],
+        password: hashPassword(acc.defaultPassword),
+      };
+    }
+  }
+
   return {
-    users:
-      Array.isArray(raw.users) && raw.users.length > 0 ? raw.users : base.users,
+    users,
     teachers,
     lessons,
     quizzes,

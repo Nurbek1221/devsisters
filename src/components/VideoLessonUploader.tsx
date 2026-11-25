@@ -67,23 +67,42 @@ export default function VideoLessonUploader({
   const activeDirectFileSrc =
     localPreviewUrl || (!isYouTubeUrl(currentVideoUrl) ? currentVideoUrl : '');
 
+  const normalizeInputUrl = (raw: string): string => {
+    let val = raw.trim();
+    // Extract src="..." if user pasted full <iframe> embed HTML
+    const iframeMatch = val.match(/src=["']([^"']+)["']/i);
+    if (iframeMatch?.[1]) {
+      val = iframeMatch[1].trim();
+    }
+    if (
+      val &&
+      !val.startsWith('http://') &&
+      !val.startsWith('https://') &&
+      (val.includes('youtube') || val.includes('youtu.be'))
+    ) {
+      val = `https://${val}`;
+    }
+    return val;
+  };
+
   const handleYouTubeChange = (val: string) => {
     setYoutubeInput(val);
     setError('');
     setUploadedReady(false);
-    const trimmed = val.trim();
-    if (!trimmed) {
+    const normalized = normalizeInputUrl(val);
+    if (!normalized) {
       onUploaded({ videoUrl: '', storagePath: '' });
       return;
     }
-    const detectedId = getYouTubeId(trimmed);
+    const detectedId = getYouTubeId(normalized);
     if (detectedId) {
-      onUploaded({ videoUrl: trimmed, storagePath: '' });
+      onUploaded({ videoUrl: normalized, storagePath: '' });
     } else if (
-      trimmed.includes('youtube.com') ||
-      trimmed.includes('youtu.be')
+      normalized.includes('youtube.com') ||
+      normalized.includes('youtube-nocookie.com') ||
+      normalized.includes('youtu.be')
     ) {
-      onUploaded({ videoUrl: trimmed, storagePath: '' });
+      onUploaded({ videoUrl: normalized, storagePath: '' });
     } else {
       setError('To‘g‘ri YouTube havolasini kiriting (masalan: https://youtu.be/...)');
     }
@@ -199,7 +218,8 @@ export default function VideoLessonUploader({
           <div className="relative">
             <Link2 className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
             <input
-              type="url"
+              type="text"
+              inputMode="url"
               value={youtubeInput}
               onChange={(e) => handleYouTubeChange(e.target.value)}
               placeholder="https://www.youtube.com/watch?v=... yoki https://youtu.be/..."
