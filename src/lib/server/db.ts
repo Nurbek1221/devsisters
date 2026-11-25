@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { del, get, list, put } from '@vercel/blob';
 import {
   CertificateRecord,
@@ -19,7 +20,8 @@ import {
 } from '../data';
 import { hashPassword } from './auth-crypto';
 
-const STATE_BLOB_PATHNAME = 'devsisters-db/state.json';
+const LEGACY_STATE_BLOB_PATHNAME = 'devsisters-db/state.json';
+const STATE_PREFIX = 'devsisters-db/state/';
 
 export interface PlatformState {
   users: User[];
@@ -324,34 +326,52 @@ function hasBlobToken(): boolean {
   return Boolean(process.env.BLOB_READ_WRITE_TOKEN?.trim());
 }
 
+/**
+ * Reads platform state from immutable versioned Blob snapshots (`devsisters-db/state/<ts>-<id>.json`).
+ * Avoids CDN overwrite propagation delays so writes are visible immediately across all serverless regions.
+ */
 export async function readPlatformState(): Promise<PlatformState> {
   if (hasBlobToken()) {
+    const listed = await list({ prefix: STATE_PREFIX });
+    const ordered = [...listed.blobs].sort((a, b) =>
+      b.pathname.localeCompare(a.pathname)
+    );
+
+    for (const candidate of ordered.slice(0, 3)) {
+      try {
+        const res = await fetch(candidate.url, { cache: 'no-store' });
+        if (res.ok) {
+          const parsed = (await res.json()) as Partial<PlatformState>;
+          const normalized = normalizeState(parsed);
+          memoryState = normalized;
+          return normalized;
+        }
+      } catch {
+        // Try next snapshot if candidate was just rotated out
+      }
+    }
+
+    // One-time migration from legacy fixed-path `devsisters-db/state.json` if present
     try {
-      const result = await get(STATE_BLOB_PATHNAME, {
+      const legacy = await get(LEGACY_STATE_BLOB_PATHNAME, {
         access: 'public',
         useCache: false,
       });
-      if (result && result.statusCode === 200) {
+      if (legacy && legacy.statusCode === 200) {
         const parsed = (await new Response(
-          result.stream
+          legacy.stream
         ).json()) as Partial<PlatformState>;
         const normalized = normalizeState(parsed);
-        memoryState = normalized;
+        await writePlatformState(normalized);
         return normalized;
       }
     } catch {
-      // Check via list() in case state blob doesn't exist yet or temporary error
-      try {
-        const existing = await list({ prefix: STATE_BLOB_PATHNAME, limit: 1 });
-        if (existing.blobs.length === 0) {
-          const seeded = createInitialState();
-          await writePlatformState(seeded);
-          return seeded;
-        }
-      } catch {
-        // Fallback to memory state below
-      }
+      // No legacy state present
     }
+
+    const seeded = createInitialState();
+    await writePlatformState(seeded);
+    return seeded;
   }
 
   if (!memoryState) {
@@ -367,23 +387,39 @@ export async function writePlatformState(
   memoryState = normalized;
 
   if (hasBlobToken()) {
+    const ts = String(Date.now()).padStart(15, '0');
+    const rand = crypto.randomBytes(3).toString('hex');
+    const key = `${STATE_PREFIX}${ts}-${rand}.json`;
+
+    await put(key, JSON.stringify(normalized), {
+      access: 'public',
+      addRandomSuffix: false,
+      contentType: 'application/json',
+    });
+
+    // Retain latest 5 immutable snapshots so concurrent readers never hit 404
     try {
-      await put(STATE_BLOB_PATHNAME, JSON.stringify(normalized), {
-        access: 'public',
-        allowOverwrite: true,
-        addRandomSuffix: false,
-        contentType: 'application/json',
-        cacheControlMaxAge: 60,
-      });
+      const listed = await list({ prefix: STATE_PREFIX });
+      const ordered = [...listed.blobs].sort((a, b) =>
+        b.pathname.localeCompare(a.pathname)
+      );
+      const stale = ordered.slice(5).map((b) => b.url);
+      if (stale.length > 0) {
+        await del(stale);
+      }
     } catch {
-      // Keep memoryState valid even if network unavailable during local tests
+      // Best-effort cleanup
     }
   }
   return normalized;
 }
 
 export async function mutatePlatformState<T>(
-  mutator: (state: PlatformState) => Promise<{ state: PlatformState; result: T }> | { state: PlatformState; result: T }
+  mutator: (
+    state: PlatformState
+  ) =>
+    | Promise<{ state: PlatformState; result: T }>
+    | { state: PlatformState; result: T }
 ): Promise<T> {
   let output!: T;
   const run = async () => {

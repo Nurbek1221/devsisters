@@ -25,11 +25,18 @@ export async function GET() {
       c.student_name.trim().toLowerCase() === user.name.trim().toLowerCase()
   );
 
-  return NextResponse.json({
-    user: sanitizeUser(user),
-    progress,
-    certificates,
-  });
+  return NextResponse.json(
+    {
+      user: sanitizeUser(user),
+      progress,
+      certificates,
+    },
+    {
+      headers: {
+        'Cache-Control': 'no-store, max-age=0',
+      },
+    }
+  );
 }
 
 export async function PATCH(request: Request) {
