@@ -40,9 +40,9 @@ Ushbu hujjat **"Raqamli avlod qizlari"** tanlovi uchun ishlab chiqilgan **devsis
 ---
 
 ## 4. Asosiy Funksiyalar va Modullar
-* **Mahalliy Video Dars Tizimi (YouTube olib tashlandi)**:
-  * O‘qituvchi (`/teacher`) va Admin (`/admin`) panellarida `VideoLessonUploader` orqali telefon yoki kompyuter xotirasidan to‘g‘ridan-to‘g‘ri video (`MP4`, `WebM`, `MOV`, maks 100 MB) yuklanadi (`URL.createObjectURL` preview + avtomatik davomiylik).
-  * Talabalar va bosh sahifada videolar HTML5 `<video controls playsInline preload="metadata" />` pleyerida ochiladi.
+* **Gibrid Video Dars Tizimi (YouTube + Tel/PC xotira)**:
+  * O‘qituvchi (`/teacher`) va Admin (`/admin`) panellarida `VideoLessonUploader` orqali **YouTube havola (`watch?v=`, `youtu.be`, `shorts`)** joylashtirish YOKI telefon/kompyuter xotirasidan video fayl (`MP4`, `WebM`, `MOV`, maks 100 MB) yuklash mumkin (`URL.createObjectURL` preview + avtomatik davomiylik).
+  * Talabalar va bosh sahifada YouTube darslar `youtube-nocookie.com` iframe pleyerda, yuklangan fayllar esa HTML5 `<video controls playsInline preload="metadata" />` pleyerida ochiladi.
 * **Profil Rasmlarini Yuklash (`AvatarUploader`)**:
   * Barcha rollar (O‘quvchi, Ustoz, Admin) va Ro‘yxatdan o‘tish oynasi telefon/kompyuterdan (`PNG`, `JPG`, `WebP`, maks 5 MB) rasm yuklab saqlay oladi.
 * **QR-kodli Rasmiy Sertifikat va Tekshiruv (`/verify/[certId]`)**:

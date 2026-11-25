@@ -23,9 +23,7 @@ export default function AdminStats({
   users,
 }: AdminStatsProps) {
   const studentsCount = users.filter((u) => u.role === 'student').length;
-  const videosReadyCount = lessons.filter(
-    (l) => l.video_url && !l.video_url.includes('youtube.com')
-  ).length;
+  const videosReadyCount = lessons.filter((l) => Boolean(l.video_url?.trim())).length;
 
   return (
     <div className="space-y-6">
@@ -83,7 +81,7 @@ export default function AdminStats({
             <div className="text-xs text-slate-400 font-bold">Xavfsizlik</div>
             <div className="text-lg font-black text-white">HMAC + Scrypt</div>
             <div className="text-[11px] text-amber-300">
-              YouTube olib tashlandi
+              YouTube + Tel/PC video
             </div>
           </div>
         </div>

@@ -47,6 +47,7 @@ import CertificateModal from '@/components/CertificateModal';
 import AiTutorModal from '@/components/AiTutorModal';
 import CommunityChat from '@/components/CommunityChat';
 import AvatarUploader from '@/components/AvatarUploader';
+import LessonVideoThumbnail from '@/components/LessonVideoThumbnail';
 import StudentQuizRunner from '@/components/student/StudentQuizRunner';
 import StudentPracticeGrid from '@/components/student/StudentPracticeGrid';
 import StudentLeaderboard from '@/components/student/StudentLeaderboard';
@@ -500,11 +501,6 @@ export default function StudentDashboardPage() {
             ) : (
               subjectLessons.map((lesson) => {
                 const isDone = completedLessons.includes(lesson.id);
-                const hasVideo = Boolean(
-                  lesson.video_url &&
-                    !lesson.video_url.includes('youtube.com') &&
-                    !lesson.video_url.includes('youtu.be')
-                );
 
                 return (
                   <div
@@ -519,22 +515,10 @@ export default function StudentDashboardPage() {
                       onClick={() => setActiveVideoLesson(lesson)}
                       className="relative h-44 w-full bg-gradient-to-br from-[#231247] to-[#120826] cursor-pointer group overflow-hidden flex items-center justify-center"
                     >
-                      {hasVideo ? (
-                        <video
-                          src={lesson.video_url}
-                          preload="metadata"
-                          muted
-                          playsInline
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                        />
-                      ) : (
-                        <div className="flex flex-col items-center gap-2 text-slate-300">
-                          <Video className="w-8 h-8 text-pink-400/80" />
-                          <span className="text-xs font-semibold">
-                            Video dars tez kunda yuklanadi
-                          </span>
-                        </div>
-                      )}
+                      <LessonVideoThumbnail
+                        videoUrl={lesson.video_url}
+                        title={lesson.title}
+                      />
                       <div className="absolute inset-0 bg-black/35 group-hover:bg-black/20 transition-colors" />
 
                       <div className="absolute inset-0 flex items-center justify-center">

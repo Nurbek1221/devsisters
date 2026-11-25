@@ -2,8 +2,9 @@
 
 import React, { useState } from 'react';
 import { Lesson, Teacher } from '@/lib/types';
-import { Plus, Edit, Trash2, Video, Play, Save, X, Clock } from 'lucide-react';
+import { Plus, Edit, Trash2, Play, Save, X, Clock } from 'lucide-react';
 import VideoLessonUploader from '@/components/VideoLessonUploader';
+import LessonVideoThumbnail from '@/components/LessonVideoThumbnail';
 
 interface LessonsManagerProps {
   lessons: Lesson[];
@@ -98,8 +99,8 @@ export default function LessonsManager({
             Video Darslar Boshqaruvi ({filtered.length} ta)
           </h3>
           <p className="text-xs text-slate-400">
-            Dars videolarini to‘g‘ridan-to‘g‘ri telefon yoki kompyuterdan
-            yuklang (YouTube ishlatilmaydi).
+            YouTube havolasini joylashtiring yoki telefon/kompyuterdan video
+            yuklang.
           </p>
         </div>
 
@@ -144,12 +145,6 @@ export default function LessonsManager({
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
         {filtered.map((lesson) => {
-          const hasVideo = Boolean(
-            lesson.video_url &&
-              !lesson.video_url.includes('youtube.com') &&
-              !lesson.video_url.includes('youtu.be')
-          );
-
           return (
             <div
               key={lesson.id}
@@ -159,20 +154,11 @@ export default function LessonsManager({
                 onClick={() => onPreviewLesson(lesson)}
                 className="relative h-40 bg-gradient-to-br from-[#231247] to-[#120826] cursor-pointer group flex items-center justify-center overflow-hidden"
               >
-                {hasVideo ? (
-                  <video
-                    src={lesson.video_url}
-                    preload="metadata"
-                    muted
-                    playsInline
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="flex flex-col items-center gap-1 text-slate-400 text-xs">
-                    <Video className="w-7 h-7 text-pink-400/70" />
-                    <span>Video yuklanmagan</span>
-                  </div>
-                )}
+                <LessonVideoThumbnail
+                  videoUrl={lesson.video_url}
+                  title={lesson.title}
+                  emptyLabel="Video joylanmagan"
+                />
 
                 <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
                   <div className="w-11 h-11 rounded-full bg-pink-600/90 text-white flex items-center justify-center">

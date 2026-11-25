@@ -8,11 +8,6 @@ import {
 } from '@/lib/server/db';
 import { Lesson } from '@/lib/types';
 
-function isYouTubeUrl(url: string): boolean {
-  const lower = url.toLowerCase();
-  return lower.includes('youtube.com') || lower.includes('youtu.be');
-}
-
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const subjectSlug = searchParams.get('subject_slug');
@@ -50,16 +45,6 @@ export async function POST(request: Request) {
     if (!title || !subjectSlug) {
       return NextResponse.json(
         { error: 'Dars nomi va fan yo‘nalishi majburiy.' },
-        { status: 400 }
-      );
-    }
-
-    if (videoUrl && isYouTubeUrl(videoUrl)) {
-      return NextResponse.json(
-        {
-          error:
-            'YouTube havolalari taqiqlangan. Iltimos, qurilmangiz xotirasidan MP4/WebM/MOV video yuklang.',
-        },
         { status: 400 }
       );
     }
@@ -132,15 +117,6 @@ export async function PATCH(request: Request) {
     const body = (await request.json()) as Partial<Lesson> & { id?: string };
     if (!body.id) {
       return NextResponse.json({ error: 'Dars ID si kerak.' }, { status: 400 });
-    }
-    if (body.video_url && isYouTubeUrl(body.video_url)) {
-      return NextResponse.json(
-        {
-          error:
-            'YouTube havolasi qo‘llab-quvvatlanmaydi. Qurilmadan video yuklang.',
-        },
-        { status: 400 }
-      );
     }
 
     let previousVideoUrl = '';

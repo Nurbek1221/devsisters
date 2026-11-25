@@ -11,6 +11,7 @@ import {
   Search,
   X,
 } from 'lucide-react';
+import LessonVideoThumbnail from './LessonVideoThumbnail';
 
 interface LessonsSectionProps {
   lessons: Lesson[];
@@ -148,11 +149,8 @@ export default function LessonsSection({
               const teacher = teachers.find(
                 (t) => t.slug === lesson.subject_slug
               );
-              const hasUploadedVideo = Boolean(
-                lesson.video_url &&
-                  lesson.video_url.trim() &&
-                  !lesson.video_url.includes('youtube.com') &&
-                  !lesson.video_url.includes('youtu.be')
+              const hasReadyVideo = Boolean(
+                lesson.video_url && lesson.video_url.trim()
               );
 
               return (
@@ -161,27 +159,13 @@ export default function LessonsSection({
                   onClick={() => onOpenVideo(lesson)}
                   className="group cursor-pointer rounded-3xl bg-[#1a1033]/90 border border-purple-800/40 hover:border-pink-500/60 overflow-hidden transition-all duration-300 hover:-translate-y-1.5 shadow-xl shadow-black/20 flex flex-col"
                 >
-                  {/* Video Poster / Uploaded HTML5 Preview */}
+                  {/* Video Poster (YouTube or Uploaded HTML5 Preview) */}
                   <div className="relative h-48 w-full bg-gradient-to-br from-[#231347] via-[#1b0e36] to-[#120826] overflow-hidden flex items-center justify-center">
-                    {hasUploadedVideo ? (
-                      <video
-                        src={lesson.video_url}
-                        preload="metadata"
-                        muted
-                        playsInline
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                      />
-                    ) : (
-                      <div className="flex flex-col items-center justify-center gap-2 px-4 text-center">
-                        <div className="w-12 h-12 rounded-2xl bg-pink-500/15 border border-pink-500/30 flex items-center justify-center">
-                          <Video className="w-6 h-6 text-pink-300" />
-                        </div>
-                        <span className="text-xs font-semibold text-slate-300">
-                          {teacher?.subject || lesson.subject_slug} •{' '}
-                          {lesson.order_num}-dars
-                        </span>
-                      </div>
-                    )}
+                    <LessonVideoThumbnail
+                      videoUrl={lesson.video_url}
+                      title={lesson.title}
+                      emptyLabel={`${teacher?.subject || lesson.subject_slug} • ${lesson.order_num}-dars`}
+                    />
 
                     <div className="absolute inset-0 bg-black/35 group-hover:bg-black/20 transition-colors" />
 
@@ -199,12 +183,12 @@ export default function LessonsSection({
                       </span>
                       <span
                         className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
-                          hasUploadedVideo
+                          hasReadyVideo
                             ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
                             : 'bg-amber-500/15 text-amber-300 border-amber-500/30'
                         }`}
                       >
-                        {hasUploadedVideo ? 'Video tayyor' : 'Tez kunda'}
+                        {hasReadyVideo ? 'Video tayyor' : 'Tez kunda'}
                       </span>
                     </div>
 

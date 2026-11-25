@@ -9,7 +9,6 @@ import {
   Plus,
   Edit,
   Trash2,
-  Video,
   Clock,
   ArrowLeft,
   Save,
@@ -18,6 +17,7 @@ import {
   Users,
   BookOpen,
 } from 'lucide-react';
+import LessonVideoThumbnail from '@/components/LessonVideoThumbnail';
 import {
   getStoredUser,
   logoutUser,
@@ -304,12 +304,6 @@ export default function TeacherDashboardPage() {
         {activeTab === 'lessons' && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {myLessons.map((lesson) => {
-              const hasVideo = Boolean(
-                lesson.video_url &&
-                  !lesson.video_url.includes('youtube.com') &&
-                  !lesson.video_url.includes('youtu.be')
-              );
-
               return (
                 <div
                   key={lesson.id}
@@ -319,20 +313,11 @@ export default function TeacherDashboardPage() {
                     onClick={() => setPreviewLesson(lesson)}
                     className="relative h-44 bg-gradient-to-br from-[#231247] to-[#120826] cursor-pointer group flex items-center justify-center overflow-hidden"
                   >
-                    {hasVideo ? (
-                      <video
-                        src={lesson.video_url}
-                        preload="metadata"
-                        muted
-                        playsInline
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="flex flex-col items-center gap-1.5 text-slate-400 text-xs">
-                        <Video className="w-8 h-8 text-pink-400/70" />
-                        <span>Video yuklanmagan (tahrirlang)</span>
-                      </div>
-                    )}
+                    <LessonVideoThumbnail
+                      videoUrl={lesson.video_url}
+                      title={lesson.title}
+                      emptyLabel="Video joylanmagan (tahrirlang)"
+                    />
                     <div className="absolute inset-0 bg-black/30 group-hover:bg-black/15 transition-colors flex items-center justify-center">
                       <div className="w-12 h-12 rounded-full bg-pink-600/90 text-white flex items-center justify-center shadow-lg">
                         <Play className="w-5 h-5 fill-white ml-0.5" />
@@ -522,7 +507,7 @@ export default function TeacherDashboardPage() {
 
               <div>
                 <label className="text-xs font-bold text-slate-300 block mb-1.5">
-                  Video Faylni Yuklash (Telefon / Kompyuter xotirasidan)
+                  Video Manbasi (YouTube havola yoki Tel / PC xotirasi)
                 </label>
                 <VideoLessonUploader
                   subjectSlug={editingLesson.subject_slug || teacherSubjectSlug}

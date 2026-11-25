@@ -10,8 +10,14 @@ import {
   Sparkles,
   BookOpen,
   Video,
+  ExternalLink,
 } from 'lucide-react';
 import { INITIAL_TEACHERS } from '@/lib/data';
+import {
+  getYouTubeEmbedUrl,
+  getYouTubeId,
+  YouTubeIcon,
+} from '@/lib/youtube';
 
 interface VideoModalProps {
   lesson: Lesson | null;
@@ -36,11 +42,10 @@ export default function VideoModal({
 
   const teacher = teachers.find((t) => t.slug === lesson.subject_slug);
   const effectiveCompleted = onToggleComplete ? isCompleted : localCompleted;
-  const hasVideo = Boolean(
-    lesson.video_url &&
-      lesson.video_url.trim() &&
-      !lesson.video_url.includes('youtube.com') &&
-      !lesson.video_url.includes('youtu.be')
+  const ytId = getYouTubeId(lesson.video_url);
+  const ytEmbedUrl = ytId ? getYouTubeEmbedUrl(lesson.video_url, true) : '';
+  const hasDirectVideo = Boolean(
+    lesson.video_url && lesson.video_url.trim() && !ytId
   );
 
   const handleMarkComplete = () => {
@@ -87,8 +92,18 @@ export default function VideoModal({
         {/* Header bar */}
         <div className="flex items-center justify-between px-4 sm:px-6 py-4 bg-[#1c103b] border-b border-purple-800/40 gap-3">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-pink-500 to-purple-600 flex items-center justify-center shrink-0">
-              <Video className="w-5 h-5 text-white" />
+            <div
+              className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                ytId
+                  ? 'bg-gradient-to-br from-rose-500 to-pink-600'
+                  : 'bg-gradient-to-br from-pink-500 to-purple-600'
+              }`}
+            >
+              {ytId ? (
+                <YouTubeIcon className="w-5 h-5 text-white" />
+              ) : (
+                <Video className="w-5 h-5 text-white" />
+              )}
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2 text-xs text-pink-400 font-bold uppercase tracking-wider">
@@ -105,6 +120,7 @@ export default function VideoModal({
           </div>
 
           <button
+            type="button"
             onClick={onClose}
             aria-label="Yopish"
             className="w-9 h-9 rounded-full bg-white/5 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 flex items-center justify-center transition-colors cursor-pointer shrink-0"
@@ -113,9 +129,18 @@ export default function VideoModal({
           </button>
         </div>
 
-        {/* HTML5 Video Player */}
+        {/* Video Player (YouTube iframe OR HTML5 Video) */}
         <div className="relative w-full aspect-video bg-black flex items-center justify-center">
-          {hasVideo ? (
+          {ytId && ytEmbedUrl ? (
+            <iframe
+              key={lesson.id}
+              src={ytEmbedUrl}
+              title={lesson.title}
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allowFullScreen
+              className="w-full h-full border-0"
+            />
+          ) : hasDirectVideo ? (
             <video
               key={lesson.id}
               src={lesson.video_url}
@@ -135,8 +160,8 @@ export default function VideoModal({
                 Video dars tez kunda yuklanadi
               </p>
               <p className="text-xs sm:text-sm text-slate-400 max-w-md">
-                {teacher?.name || 'Mentor'} ushbu dars videosini telefon yoki
-                kompyuterdan yuklagandan so‘ng bu yerda avtomatik ochiladi.
+                {teacher?.name || 'Mentor'} ushbu dars uchun YouTube havolasi
+                yoki video fayl yuklagandan so‘ng bu yerda darhol ochiladi.
               </p>
             </div>
           )}
@@ -153,6 +178,18 @@ export default function VideoModal({
             </div>
 
             <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+              {ytId && (
+                <a
+                  href={`https://www.youtube.com/watch?v=${ytId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 text-xs font-bold transition-all"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>YouTube’da ochish</span>
+                </a>
+              )}
+
               <button
                 type="button"
                 onClick={handleMarkComplete}

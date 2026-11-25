@@ -260,11 +260,8 @@ function normalizeState(raw: Partial<PlatformState>): PlatformState {
       : base.lessons
   ).map((l) => {
     const url = (l.video_url || '').trim();
-    const hasLegacyYouTube =
-      url.includes('youtube.com') ||
-      url.includes('youtu.be') ||
-      url.includes('dQw4w9WgXcQ');
-    return hasLegacyYouTube ? { ...l, video_url: '' } : l;
+    // Clean only the old dummy rickroll placeholder while keeping real YouTube lessons
+    return url.includes('dQw4w9WgXcQ') ? { ...l, video_url: '' } : l;
   });
   if (!lessons.some((l) => l.subject_slug === 'it-dasturlash')) {
     const itLesson = base.lessons.find(
