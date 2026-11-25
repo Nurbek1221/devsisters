@@ -243,9 +243,15 @@ export default function StudentDashboardPage() {
 
   const handleAvatarUploaded = async (url: string) => {
     const res = await updateUserProfile({ avatar_url: url });
-    if (res.user) {
-      setUser(res.user);
+    if (res.error || !res.user) {
+      throw new Error(res.error || 'Profil rasmini bazaga saqlab bo‘lmadi.');
     }
+    setUser(res.user);
+    setLeaderboard((prev) =>
+      prev.map((entry) =>
+        entry.id === res.user!.id ? { ...entry, avatar_url: url } : entry
+      )
+    );
   };
 
   const handleTryCertificate = () => {
@@ -306,6 +312,14 @@ export default function StudentDashboardPage() {
             >
               <ArrowLeft className="w-5 h-5" />
             </Link>
+            {user.avatar_url && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={user.avatar_url}
+                alt={user.name}
+                className="w-10 h-10 rounded-xl object-cover border border-pink-500/40 shrink-0"
+              />
+            )}
             <div>
               <div className="flex items-center gap-2">
                 <span className="font-extrabold text-lg sm:text-xl bg-gradient-to-r from-pink-400 to-purple-400 bg-clip-text text-transparent">

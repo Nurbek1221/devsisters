@@ -43,6 +43,7 @@ export default function OnboardingModal({
   const [avatarUrl, setAvatarUrl] = useState('');
   const [selectedSubject, setSelectedSubject] =
     useState<string>('it-dasturlash');
+  const [avatarUploading, setAvatarUploading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -167,6 +168,7 @@ export default function OnboardingModal({
                   folder="students"
                   size="sm"
                   label="Profil rasmi (ixtiyoriy)"
+                  onBusyChange={setAvatarUploading}
                   onUploaded={(url) => setAvatarUrl(url)}
                 />
               </div>
@@ -224,9 +226,12 @@ export default function OnboardingModal({
 
                 <button
                   type="submit"
-                  className="w-full sm:w-auto px-8 py-3.5 rounded-2xl bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-500 hover:to-rose-500 text-white font-bold text-sm shadow-xl shadow-pink-600/30 flex items-center justify-center gap-2 transition-all cursor-pointer"
+                  disabled={avatarUploading}
+                  className="w-full sm:w-auto px-8 py-3.5 rounded-2xl bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-500 hover:to-rose-500 disabled:opacity-60 text-white font-bold text-sm shadow-xl shadow-pink-600/30 flex items-center justify-center gap-2 transition-all cursor-pointer"
                 >
-                  <span>Keyingi qadam</span>
+                  <span>
+                    {avatarUploading ? 'Rasm yuklanmoqda...' : 'Keyingi qadam'}
+                  </span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
               </div>

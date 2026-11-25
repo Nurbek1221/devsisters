@@ -14,7 +14,7 @@ import {
   User as UserIcon,
   LogOut,
 } from 'lucide-react';
-import { getStoredUser, logoutUser } from '@/lib/auth';
+import { getStoredUser, logoutUser, refreshCurrentUser } from '@/lib/auth';
 import { PublicUser } from '@/lib/types';
 
 export default function Navbar() {
@@ -24,6 +24,9 @@ export default function Navbar() {
   useEffect(() => {
     const timer = setTimeout(() => {
       setCurrentUser(getStoredUser());
+      void refreshCurrentUser().then((fresh) => {
+        if (fresh) setCurrentUser(fresh);
+      });
     }, 0);
     return () => clearTimeout(timer);
   }, []);
@@ -106,9 +109,18 @@ export default function Navbar() {
               <div className="flex items-center gap-2">
                 <Link
                   href={getDashboardLink()}
-                  className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 transition-all flex items-center gap-2 shadow-md shadow-pink-600/25"
+                  className="px-3.5 py-1.5 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 transition-all flex items-center gap-2 shadow-md shadow-pink-600/25"
                 >
-                  <UserIcon className="w-4 h-4" />
+                  {currentUser.avatar_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={currentUser.avatar_url}
+                      alt={currentUser.name}
+                      className="w-6 h-6 rounded-lg object-cover border border-white/30"
+                    />
+                  ) : (
+                    <UserIcon className="w-4 h-4" />
+                  )}
                   <span>{currentUser.name.split(' ')[0]}</span>
                   <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-white/20">
                     {getRoleLabel()}
@@ -138,10 +150,19 @@ export default function Navbar() {
           <div className="flex md:hidden items-center gap-2">
             <Link
               href={getDashboardLink()}
-              className="p-2 rounded-xl bg-pink-500/10 border border-pink-500/30 text-pink-300"
+              className="p-1.5 rounded-xl bg-pink-500/10 border border-pink-500/30 text-pink-300 flex items-center justify-center"
               title="Kabinet"
             >
-              <UserIcon className="w-5 h-5" />
+              {currentUser?.avatar_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={currentUser.avatar_url}
+                  alt={currentUser.name}
+                  className="w-6 h-6 rounded-lg object-cover"
+                />
+              ) : (
+                <UserIcon className="w-5 h-5" />
+              )}
             </Link>
             <button
               onClick={() => setIsOpen(!isOpen)}
@@ -198,7 +219,16 @@ export default function Navbar() {
                   onClick={() => setIsOpen(false)}
                   className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-pink-600 to-purple-600 shadow-md"
                 >
-                  <UserIcon className="w-4 h-4" />
+                  {currentUser.avatar_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={currentUser.avatar_url}
+                      alt={currentUser.name}
+                      className="w-5 h-5 rounded-full object-cover border border-white/40"
+                    />
+                  ) : (
+                    <UserIcon className="w-4 h-4" />
+                  )}
                   <span>Kabinetim ({currentUser.name})</span>
                 </Link>
                 <button

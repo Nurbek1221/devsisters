@@ -35,13 +35,23 @@ export async function POST(request: Request) {
         );
       }
 
-      if (!IMAGE_MIME_TYPES.includes(file.type)) {
+      const allowedByMime = IMAGE_MIME_TYPES.includes(file.type);
+      const allowedByExt = /\.(png|jpe?g|webp)$/i.test(file.name);
+      if (!allowedByMime && !allowedByExt) {
         metric('media.upload', 1, { kind: 'avatar', outcome: 'error' });
         return NextResponse.json(
           { error: 'Faqat PNG, JPG yoki WebP rasmlar ruxsat etilgan.' },
           { status: 400 }
         );
       }
+
+      const resolvedContentType = allowedByMime
+        ? file.type
+        : /\.png$/i.test(file.name)
+          ? 'image/png'
+          : /\.webp$/i.test(file.name)
+            ? 'image/webp'
+            : 'image/jpeg';
 
       if (file.size > MAX_AVATAR_BYTES) {
         metric('media.upload', 1, { kind: 'avatar', outcome: 'error' });
@@ -57,7 +67,7 @@ export async function POST(request: Request) {
       if (!process.env.BLOB_READ_WRITE_TOKEN?.trim()) {
         // Fallback when local machine runs offline without BLOB token
         const bytes = Buffer.from(await file.arrayBuffer());
-        const dataUrl = `data:${file.type};base64,${bytes.toString('base64')}`;
+        const dataUrl = `data:${resolvedContentType};base64,${bytes.toString('base64')}`;
         return NextResponse.json({
           url: dataUrl,
           storagePath: pathname,
@@ -68,7 +78,7 @@ export async function POST(request: Request) {
       const blob = await put(pathname, file, {
         access: 'public',
         addRandomSuffix: true,
-        contentType: file.type,
+        contentType: resolvedContentType,
       });
 
       metric('media.upload', 1, { kind: 'avatar', outcome: 'success' });

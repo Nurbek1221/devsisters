@@ -32,6 +32,7 @@ function LoginPageContent() {
   const [phone, setPhone] = useState('');
   const [subjectSlug, setSubjectSlug] = useState('it-dasturlash');
   const [avatarUrl, setAvatarUrl] = useState('');
+  const [avatarUploading, setAvatarUploading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -178,6 +179,7 @@ function LoginPageContent() {
                   folder="students"
                   size="sm"
                   label="Profil rasmini yuklash"
+                  onBusyChange={setAvatarUploading}
                   onUploaded={(url) => setAvatarUrl(url)}
                 />
               </div>
@@ -273,15 +275,17 @@ function LoginPageContent() {
 
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || avatarUploading}
             className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-500 hover:to-rose-500 disabled:opacity-60 text-white font-bold text-sm shadow-xl shadow-pink-600/30 flex items-center justify-center gap-2 transition-all cursor-pointer"
           >
             <span>
-              {loading
-                ? 'Tekshirilmoqda...'
-                : mode === 'login'
-                  ? 'Kabinetga Kirish'
-                  : 'Ro‘yxatdan O‘tish'}
+              {avatarUploading
+                ? 'Rasm yuklanmoqda...'
+                : loading
+                  ? 'Tekshirilmoqda...'
+                  : mode === 'login'
+                    ? 'Kabinetga Kirish'
+                    : 'Ro‘yxatdan O‘tish'}
             </span>
             <ArrowRight className="w-4 h-4" />
           </button>

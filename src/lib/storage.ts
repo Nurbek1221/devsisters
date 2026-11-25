@@ -10,7 +10,7 @@ export const ALLOWED_VIDEO_TYPES = [
 export const MAX_VIDEO_BYTES = 100 * 1024 * 1024; // 100 MB
 
 export const ALLOWED_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
-export const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5 MB
+export const MAX_IMAGE_SOURCE_BYTES = 20 * 1024 * 1024; // 20 MB gacha telefon rasmlari qisqartiriladi
 
 export interface UploadResult {
   url: string;
@@ -39,13 +39,17 @@ export function validateVideoFile(file: File): string | null {
 }
 
 export function validateImageFile(file: File): string | null {
-  const extAllowed = /\.(png|jpe?g|webp)$/i.test(file.name);
-  if (!ALLOWED_IMAGE_TYPES.includes(file.type) && !extAllowed) {
-    return 'Faqat PNG, JPG/JPEG yoki WebP formatidagi rasm fayllar ruxsat etilgan.';
+  const extAllowed = /\.(png|jpe?g|webp|jfif|gif|heic|heif|bmp)$/i.test(
+    file.name
+  );
+  const isImageMime =
+    file.type.startsWith('image/') || ALLOWED_IMAGE_TYPES.includes(file.type);
+  if (!isImageMime && !extAllowed) {
+    return 'Faqat rasm fayllari (PNG, JPG, WebP) ruxsat etilgan.';
   }
-  if (file.size > MAX_IMAGE_BYTES) {
+  if (file.size > MAX_IMAGE_SOURCE_BYTES) {
     const mb = (file.size / (1024 * 1024)).toFixed(1);
-    return `Rasm hajmi 5 MB dan oshmasligi kerak (tanlangan fayl: ${mb} MB).`;
+    return `Rasm hajmi 20 MB dan oshmasligi kerak (tanlangan fayl: ${mb} MB).`;
   }
   return null;
 }
@@ -88,39 +92,59 @@ export function getVideoDuration(file: File): Promise<string> {
   });
 }
 
-function fileToCompactDataUrl(file: File, maxDimension = 360): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const img = new Image();
-      img.onload = () => {
-        const scale = Math.min(1, maxDimension / Math.max(img.width, img.height));
-        const width = Math.max(1, Math.round(img.width * scale));
-        const height = Math.max(1, Math.round(img.height * scale));
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          resolve(typeof reader.result === 'string' ? reader.result : '');
-          return;
-        }
-        ctx.drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL('image/webp', 0.85));
-      };
-      img.onerror = () => {
-        if (typeof reader.result === 'string') resolve(reader.result);
-        else reject(new Error('Rasmni o‘qib bo‘lmadi'));
-      };
-      if (typeof reader.result === 'string') img.src = reader.result;
-    };
-    reader.onerror = () => reject(new Error('Faylni o‘qib bo‘lmadi'));
-    reader.readAsDataURL(file);
-  });
+/**
+ * Browser-side image compression before upload so high-res 5-15MB phone camera
+ * photos shrink cleanly under ~150KB and never hit 4.5MB serverless request limits.
+ */
+async function prepareCompactAvatarFile(
+  file: File,
+  maxDimension = 640
+): Promise<File> {
+  if (typeof window === 'undefined') {
+    return file;
+  }
+
+  try {
+    const objectUrl = URL.createObjectURL(file);
+    try {
+      const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const el = new Image();
+        el.onload = () => resolve(el);
+        el.onerror = () => reject(new Error('decode failed'));
+        el.src = objectUrl;
+      });
+
+      const scale = Math.min(
+        1,
+        maxDimension / Math.max(img.width || 1, img.height || 1)
+      );
+      const width = Math.max(1, Math.round(img.width * scale));
+      const height = Math.max(1, Math.round(img.height * scale));
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return file;
+
+      ctx.drawImage(img, 0, 0, width, height);
+
+      const blob = await new Promise<Blob | null>((resolve) =>
+        canvas.toBlob(resolve, 'image/jpeg', 0.86)
+      );
+      if (!blob) return file;
+
+      const baseName = sanitizeFileName(file.name).replace(/\.[^.]+$/, '');
+      return new File([blob], `${baseName}.jpg`, { type: 'image/jpeg' });
+    } finally {
+      URL.revokeObjectURL(objectUrl);
+    }
+  } catch {
+    return file;
+  }
 }
 
 /**
- * Upload lesson video to Supabase Storage (`lesson-videos` bucket) if reachable,
+ * Upload lesson video to Supabase Storage (`lesson-videos` bucket) if active,
  * or directly to Vercel Blob (`lesson-videos/*`) via client upload token.
  */
 export async function uploadLessonVideo(
@@ -136,7 +160,6 @@ export async function uploadLessonVideo(
   const cleanName = sanitizeFileName(file.name);
   const path = `lesson-videos/${subjectSlug || 'general'}/${Date.now()}-${cleanName}`;
 
-  // 1. Try Supabase Storage (`lesson-videos` bucket) when configured & reachable
   const sb = isSupabaseConfigured() ? getSupabaseClient() : null;
   if (sb) {
     try {
@@ -164,7 +187,6 @@ export async function uploadLessonVideo(
     }
   }
 
-  // 2. Upload via Vercel Blob client upload (`/api/upload`)
   const blob = await upload(path, file, {
     access: 'public',
     handleUploadUrl: '/api/upload',
@@ -185,8 +207,8 @@ export async function uploadLessonVideo(
 }
 
 /**
- * Upload profile or mentor avatar image to Supabase Storage (`avatars` bucket),
- * or Vercel Blob (`avatars/*`), with compressed DataURL fallback for offline local dev.
+ * Upload profile or mentor avatar image (compressed in browser first)
+ * to active Supabase Storage (`avatars` bucket) or Vercel Blob (`/api/upload`).
  */
 export async function uploadAvatar(
   file: File,
@@ -197,20 +219,24 @@ export async function uploadAvatar(
     throw new Error(validationError);
   }
 
-  const cleanName = sanitizeFileName(file.name);
+  const readyFile = await prepareCompactAvatarFile(file);
+  if (readyFile.size > 4 * 1024 * 1024) {
+    throw new Error('Rasmni siqishdan keyin ham hajmi 4 MB dan katta bo‘ldi.');
+  }
+
+  const cleanName = sanitizeFileName(readyFile.name);
   const path = `avatars/${folder}/${Date.now()}-${cleanName}`;
 
-  // 1. Try Supabase Storage (`avatars` bucket)
   const sb = isSupabaseConfigured() ? getSupabaseClient() : null;
   if (sb) {
     try {
       const bucketPath = path.replace(/^avatars\//, '');
       const { error } = await sb.storage
         .from('avatars')
-        .upload(bucketPath, file, {
+        .upload(bucketPath, readyFile, {
           cacheControl: '3600',
           upsert: true,
-          contentType: file.type || 'image/jpeg',
+          contentType: readyFile.type || 'image/jpeg',
         });
       if (!error) {
         const { data } = sb.storage.from('avatars').getPublicUrl(bucketPath);
@@ -227,38 +253,31 @@ export async function uploadAvatar(
     }
   }
 
-  // 2. Upload via server multipart endpoint (`/api/upload`) -> Vercel Blob
-  try {
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('folder', folder);
+  const formData = new FormData();
+  formData.append('file', readyFile);
+  formData.append('folder', folder);
 
-    const res = await fetch('/api/upload', {
-      method: 'POST',
-      body: formData,
-    });
+  const res = await fetch('/api/upload', {
+    method: 'POST',
+    body: formData,
+  });
 
-    if (res.ok) {
-      const json = (await res.json()) as {
-        url?: string;
-        storagePath?: string;
-      };
-      if (json.url) {
-        return {
-          url: json.url,
-          storagePath: json.storagePath || path,
-          provider: 'vercel-blob',
-        };
-      }
-    }
-  } catch {
-    // Fallback to compact WebP data URL if offline
+  const json = (await res.json().catch(() => ({}))) as {
+    url?: string;
+    storagePath?: string;
+    error?: string;
+  };
+
+  if (!res.ok || !json.url) {
+    throw new Error(
+      json.error ||
+        'Rasmni serverga yuklab bo‘lmadi. Iltimos, PNG/JPG/WebP rasm tanlang.'
+    );
   }
 
-  const compactUrl = await fileToCompactDataUrl(file);
   return {
-    url: compactUrl,
-    storagePath: path,
-    provider: 'local-preview',
+    url: json.url,
+    storagePath: json.storagePath || path,
+    provider: 'vercel-blob',
   };
 }

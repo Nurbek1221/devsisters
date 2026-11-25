@@ -155,7 +155,10 @@ export default function AdminDashboardPage() {
             label="Admin rasmini yuklash"
             onUploaded={async (url) => {
               const res = await updateUserProfile({ avatar_url: url });
-              if (res.user) setUser(res.user);
+              if (res.error || !res.user) {
+                throw new Error(res.error || 'Admin rasmini saqlab bo‘lmadi.');
+              }
+              setUser(res.user);
             }}
           />
 

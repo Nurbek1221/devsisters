@@ -171,14 +171,15 @@ export default function TeacherDashboardPage() {
 
   const handleAvatarUploaded = async (url: string) => {
     const res = await updateUserProfile({ avatar_url: url });
-    if (res.user) {
-      setUser(res.user);
-      setTeachers((prev) =>
-        prev.map((t) =>
-          t.slug === teacherSubjectSlug ? { ...t, avatar_url: url } : t
-        )
-      );
+    if (res.error || !res.user) {
+      throw new Error(res.error || 'Profil rasmini saqlab bo‘lmadi.');
     }
+    setUser(res.user);
+    setTeachers((prev) =>
+      prev.map((t) =>
+        t.slug === teacherSubjectSlug ? { ...t, avatar_url: url } : t
+      )
+    );
   };
 
   const handleLogout = async () => {

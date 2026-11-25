@@ -1,4 +1,5 @@
 import React, { Suspense } from 'react';
+import { connection } from 'next/server';
 import Link from 'next/link';
 import {
   Award,
@@ -16,6 +17,7 @@ async function CertificateVerificationContent({
 }: {
   paramsPromise: Promise<{ certId: string }>;
 }) {
+  await connection();
   const { certId } = await paramsPromise;
   const cleanCode = decodeURIComponent(certId || '').trim().toUpperCase();
   const state = await readPlatformState();

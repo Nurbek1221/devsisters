@@ -10,6 +10,7 @@ interface AvatarUploaderProps {
   folder?: string;
   size?: 'sm' | 'md' | 'lg';
   onUploaded: (url: string) => Promise<void> | void;
+  onBusyChange?: (busy: boolean) => void;
   label?: string;
 }
 
@@ -19,6 +20,7 @@ export default function AvatarUploader({
   folder = 'users',
   size = 'md',
   onUploaded,
+  onBusyChange,
   label = 'Rasm yuklash (Tel / PC)',
 }: AvatarUploaderProps) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -56,15 +58,22 @@ export default function AvatarUploader({
       return;
     }
 
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+    }
+
     const objectUrl = URL.createObjectURL(file);
     setPreviewUrl(objectUrl);
     setUploading(true);
+    onBusyChange?.(true);
 
     try {
       const result = await uploadAvatar(file, folder);
       await onUploaded(result.url);
+      setPreviewUrl('');
+      URL.revokeObjectURL(objectUrl);
       setDone(true);
-      setTimeout(() => setDone(false), 2500);
+      setTimeout(() => setDone(false), 3000);
     } catch (err) {
       setError(
         err instanceof Error
@@ -72,8 +81,10 @@ export default function AvatarUploader({
           : 'Profil rasmini yuklashda xatolik yuz berdi.'
       );
       setPreviewUrl('');
+      URL.revokeObjectURL(objectUrl);
     } finally {
       setUploading(false);
+      onBusyChange?.(false);
       e.target.value = '';
     }
   };
@@ -107,7 +118,7 @@ export default function AvatarUploader({
           <input
             ref={inputRef}
             type="file"
-            accept="image/png,image/jpeg,image/webp,image/*"
+            accept="image/*"
             onChange={handleFileChange}
             className="hidden"
           />
@@ -121,7 +132,7 @@ export default function AvatarUploader({
             <span>{uploading ? 'Yuklanmoqda...' : label}</span>
           </button>
           <span className="text-[11px] text-slate-400">
-            PNG, JPG, WebP • Maks 5 MB
+            PNG, JPG, WebP • Avtomatik optimallashtiriladi
           </span>
         </div>
       </div>
@@ -129,7 +140,7 @@ export default function AvatarUploader({
       {done && (
         <p className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-400">
           <CheckCircle2 className="w-3.5 h-3.5" />
-          <span>Profil rasmi saqlandi!</span>
+          <span>Profil rasmi bazaga saqlandi!</span>
         </p>
       )}
       {error && (
