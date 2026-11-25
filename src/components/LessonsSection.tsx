@@ -178,7 +178,7 @@ export default function LessonsSection({
 
                     {/* Top Left Badges */}
                     <div className="absolute top-3 left-3 flex items-center gap-1.5 flex-wrap">
-                      <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-[#140b2a]/90 backdrop-blur-md text-pink-300 border border-pink-500/30">
+                      <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-[#140b2a]/95 text-pink-300 border border-pink-500/30">
                         {teacher?.subject || lesson.subject_slug}
                       </span>
                       <span
@@ -193,7 +193,7 @@ export default function LessonsSection({
                     </div>
 
                     {/* Duration pill */}
-                    <div className="absolute bottom-3 right-3 px-2.5 py-1 rounded-lg bg-black/80 backdrop-blur-md text-[11px] font-bold text-slate-200 flex items-center gap-1">
+                    <div className="absolute bottom-3 right-3 px-2.5 py-1 rounded-lg bg-black/85 text-[11px] font-bold text-slate-200 flex items-center gap-1">
                       <Clock className="w-3 h-3 text-pink-400" />
                       <span>{lesson.duration}</span>
                     </div>

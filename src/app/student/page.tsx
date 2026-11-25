@@ -303,7 +303,7 @@ export default function StudentDashboardPage() {
   return (
     <div className="min-h-screen bg-[#0d071d] text-slate-100 flex flex-col">
       {/* Header */}
-      <header className="sticky top-0 z-40 bg-[#140b2a]/90 backdrop-blur-xl border-b border-purple-900/40 px-4 sm:px-8 py-4">
+      <header className="sticky top-0 z-40 bg-[#140b2a]/95 border-b border-purple-900/40 px-4 sm:px-8 py-4">
         <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <Link
@@ -404,7 +404,7 @@ export default function StudentDashboardPage() {
           </div>
 
           {/* Progress & Certificate Box */}
-          <div className="bg-black/30 backdrop-blur-md border border-white/10 rounded-2xl p-4 sm:p-5 space-y-3">
+          <div className="bg-black/45 border border-white/10 rounded-2xl p-4 sm:p-5 space-y-3">
             <div className="flex justify-between items-center text-xs font-bold">
               <span className="text-slate-300">Kurs Progressi</span>
               <span className="text-pink-400">

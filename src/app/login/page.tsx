@@ -115,7 +115,7 @@ function LoginPageContent() {
         </Link>
       </div>
 
-      <div className="w-full max-w-md mx-auto my-8 bg-[#160c2e]/95 border border-purple-700/50 rounded-3xl p-6 sm:p-8 shadow-2xl shadow-purple-900/40 backdrop-blur-xl">
+      <div className="w-full max-w-md mx-auto my-8 bg-[#160c2e]/95 border border-purple-700/50 rounded-3xl p-6 sm:p-8 shadow-2xl shadow-purple-900/40">
         {/* Header */}
         <div className="text-center mb-6">
           <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-pink-500 to-purple-600 flex items-center justify-center mx-auto mb-3 shadow-lg shadow-pink-500/30">

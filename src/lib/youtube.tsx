@@ -8,7 +8,7 @@ export function getYouTubeId(url: string): string | null {
   if (!url || typeof url !== 'string') return null;
   const trimmed = url.trim();
   const match = trimmed.match(
-    /(?:youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/|live\/|v\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/
+    /(?:youtube(?:-nocookie)?\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/|live\/|v\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/
   );
   return match ? match[1] : null;
 }

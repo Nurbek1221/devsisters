@@ -95,7 +95,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="uz" className={`${plusJakarta.variable} scroll-smooth`}>
-      <body className="min-h-screen w-full overflow-x-hidden relative bg-[#0d071d] text-slate-100 flex flex-col font-sans selection:bg-pink-500 selection:text-white antialiased">
+      <body className="min-h-screen w-full bg-[#0d071d] text-slate-100 flex flex-col font-sans selection:bg-pink-500 selection:text-white antialiased">
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{

@@ -102,7 +102,7 @@ export default function QuizSection({ quizzes, onViewCertificate }: QuizSectionP
 
         {/* Quiz Card */}
         {activeQuiz && questions.length > 0 && (
-          <div className="p-5 sm:p-10 rounded-3xl bg-[#1d1238] border border-purple-800/40 shadow-2xl backdrop-blur-xl">
+          <div className="p-5 sm:p-10 rounded-3xl bg-[#1d1238] border border-purple-800/40 shadow-2xl">
             {!isCompleted ? (
               <div>
                 {/* Progress bar */}

@@ -198,7 +198,7 @@ export default function TeacherDashboardPage() {
   return (
     <div className="min-h-screen bg-[#0d071d] text-slate-100 flex flex-col">
       {/* Header */}
-      <header className="sticky top-0 z-40 bg-[#140b2a]/90 backdrop-blur-xl border-b border-purple-900/40 px-4 sm:px-8 py-4">
+      <header className="sticky top-0 z-40 bg-[#140b2a]/95 border-b border-purple-900/40 px-4 sm:px-8 py-4">
         <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <Link
@@ -386,7 +386,7 @@ export default function TeacherDashboardPage() {
 
       {/* Add/Edit Lesson Modal with Local File Video Upload */}
       {showEditModal && editingLesson && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 animate-fade-in overflow-y-auto">
           <div className="w-full max-w-2xl bg-[#160c2e] border border-purple-700/60 rounded-3xl p-6 sm:p-8 shadow-2xl relative my-8">
             <button
               type="button"

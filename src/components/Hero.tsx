@@ -60,7 +60,7 @@ export default function Hero({ onStartLearning }: HeroProps) {
 
           {/* Highlights / Features Row matching PDF Page 2 */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-left">
-            <div className="p-6 rounded-3xl bg-[#1e1338]/80 border border-purple-800/40 backdrop-blur-md">
+            <div className="p-6 rounded-3xl bg-[#1e1338]/95 border border-purple-800/40">
               <div className="w-12 h-12 rounded-2xl bg-pink-500/20 text-pink-400 flex items-center justify-center mb-4">
                 <HeartHandshake className="w-6 h-6" />
               </div>
@@ -70,7 +70,7 @@ export default function Hero({ onStartLearning }: HeroProps) {
               </p>
             </div>
 
-            <div className="p-6 rounded-3xl bg-[#1e1338]/80 border border-purple-800/40 backdrop-blur-md">
+            <div className="p-6 rounded-3xl bg-[#1e1338]/95 border border-purple-800/40">
               <div className="w-12 h-12 rounded-2xl bg-purple-500/20 text-purple-400 flex items-center justify-center mb-4">
                 <Smartphone className="w-6 h-6" />
               </div>

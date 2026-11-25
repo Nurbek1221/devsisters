@@ -102,7 +102,7 @@ export default function AdminDashboardPage() {
   return (
     <div className="min-h-screen bg-[#0d071d] text-slate-100 flex flex-col">
       {/* Header */}
-      <header className="sticky top-0 z-40 bg-[#140b2a]/90 backdrop-blur-xl border-b border-purple-900/40 px-4 sm:px-8 py-4">
+      <header className="sticky top-0 z-40 bg-[#140b2a]/95 border-b border-purple-900/40 px-4 sm:px-8 py-4">
         <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <Link
