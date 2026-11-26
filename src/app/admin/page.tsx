@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -13,11 +13,12 @@ import {
   BarChart3,
   ArrowLeft,
   Languages,
+  AlertTriangle,
 } from 'lucide-react';
 import {
-  getStoredUser,
   logoutUser,
   refreshCurrentUser,
+  subscribeAuthChanges,
   updateUserProfile,
 } from '@/lib/auth';
 import { INITIAL_TEACHERS, INITIAL_LESSONS } from '@/lib/data';
@@ -52,11 +53,16 @@ export default function AdminDashboardPage() {
   const [users, setUsers] = useState<PublicUser[]>([]);
   const [practiceItems, setPracticeItems] = useState<PracticeItem[]>([]);
   const [previewLesson, setPreviewLesson] = useState<Lesson | null>(null);
+  const [sessionError, setSessionError] = useState<string | null>(null);
+  const sessionErrorRef = useRef<string | null>(null);
+
+  const updateSessionError = useCallback((msg: string | null) => {
+    sessionErrorRef.current = msg;
+    setSessionError(msg);
+  }, []);
 
   const loadAdminData = useCallback(async () => {
-    const cached = getStoredUser();
-    const fresh = await refreshCurrentUser();
-    const current = fresh || cached;
+    const current = await refreshCurrentUser();
 
     if (!current || current.role !== 'admin') {
       router.push('/login?next=/admin');
@@ -64,6 +70,7 @@ export default function AdminDashboardPage() {
     }
 
     setUser(current);
+    updateSessionError(null);
     setIsCheckingAuth(false);
 
     try {
@@ -88,7 +95,15 @@ export default function AdminDashboardPage() {
         if (tData.teachers?.length) setTeachers(tData.teachers);
       }
 
-      if (usersRes.ok) {
+      if (usersRes.status === 401 || usersRes.status === 403) {
+        const errData = (await usersRes.json().catch(() => ({}))) as {
+          error?: string;
+        };
+        updateSessionError(
+          errData.error ||
+            'Admin sessiyasi faol emas. Qayta Admin sifatida kiring.'
+        );
+      } else if (usersRes.ok) {
         const uData = (await usersRes.json()) as { users?: PublicUser[] };
         if (uData.users) setUsers(uData.users);
       }
@@ -102,7 +117,7 @@ export default function AdminDashboardPage() {
     } catch {
       // Fallback kept
     }
-  }, [router]);
+  }, [router, updateSessionError]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -110,6 +125,26 @@ export default function AdminDashboardPage() {
     }, 0);
     return () => clearTimeout(timer);
   }, [loadAdminData]);
+
+  useEffect(() => {
+    return subscribeAuthChanges(() => {
+      void (async () => {
+        const latest = await refreshCurrentUser();
+        if (!latest || latest.role !== 'admin') {
+          const msg = latest
+            ? `Boshqa oynada "${latest.name}" (${latest.role}) hisobiga kirilgan. Admin amallarini bajarish uchun qayta Admin sifatida kiring.`
+            : 'Admin sessiyasi yakunlangan. Davom ettirish uchun qayta Admin sifatida kiring.';
+          updateSessionError(msg);
+          return;
+        }
+        setUser(latest);
+        if (sessionErrorRef.current) {
+          updateSessionError(null);
+          void loadAdminData();
+        }
+      })();
+    });
+  }, [loadAdminData, updateSessionError]);
 
   const handleTeachersSynced = async (nextTeachers: Teacher[]) => {
     setTeachers(nextTeachers);
@@ -193,6 +228,26 @@ export default function AdminDashboardPage() {
       </header>
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+        {sessionError && (
+          <div className="p-4 sm:p-5 rounded-3xl bg-amber-500/15 border border-amber-400/40 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-lg">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-amber-300 shrink-0 mt-0.5" />
+              <div className="text-xs sm:text-sm text-amber-100 leading-relaxed">
+                <p className="font-bold text-amber-200">
+                  Admin sessiyasi o‘zgargan yoki faol emas
+                </p>
+                <p>{sessionError}</p>
+              </div>
+            </div>
+            <Link
+              href="/login?next=/admin"
+              className="px-4 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-extrabold whitespace-nowrap text-center transition-colors"
+            >
+              Admin sifatida qayta kirish
+            </Link>
+          </div>
+        )}
+
         {/* Admin Profile Card */}
         <div className="bg-[#160c2e] border border-purple-800/40 rounded-3xl p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <AvatarUploader
@@ -287,6 +342,7 @@ export default function AdminDashboardPage() {
             teachers={teachers}
             currentAdminId={user.id}
             onUsersChange={setUsers}
+            onAuthError={(msg) => updateSessionError(msg)}
           />
         )}
 

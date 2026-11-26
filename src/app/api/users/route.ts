@@ -8,13 +8,55 @@ import {
 import { mutatePlatformState, readPlatformState } from '@/lib/server/db';
 import { User } from '@/lib/types';
 
-export async function GET() {
+async function requireAdminSession(action?: 'update' | 'delete') {
   const session = await getSessionPayload();
-  if (!session || session.role !== 'admin') {
-    return NextResponse.json(
-      { error: 'Foydalanuvchilar ro‘yxati faqat administrator uchun.' },
-      { status: 403 }
-    );
+  if (!session) {
+    if (action) {
+      metric('admin.users_mutation', 1, { action, outcome: 'error' });
+    }
+    return {
+      ok: false as const,
+      response: NextResponse.json(
+        {
+          error:
+            'Admin sessiyasi topilmadi yoki muddati tugagan. Iltimos, Admin sifatida qayta kiring.',
+          code: 'SESSION_REQUIRED',
+        },
+        { status: 401 }
+      ),
+    };
+  }
+
+  if (session.role !== 'admin') {
+    if (action) {
+      metric('admin.users_mutation', 1, { action, outcome: 'error' });
+    }
+    const roleLabel =
+      session.role === 'teacher'
+        ? 'O‘qituvchi'
+        : session.role === 'student'
+          ? 'O‘quvchi'
+          : session.role;
+    return {
+      ok: false as const,
+      response: NextResponse.json(
+        {
+          error: `Faol brauzer sessiyasi "${session.email}" (${roleLabel}) hisobiga o‘tgan (boshqa oynada kirilgan bo‘lishi mumkin). Admin amallari uchun Admin sifatida qayta kiring.`,
+          code: 'ADMIN_ROLE_REQUIRED',
+          currentRole: session.role,
+        },
+        { status: 403 }
+      ),
+    };
+  }
+
+  return { ok: true as const, session };
+}
+
+export async function GET() {
+  const auth = await requireAdminSession();
+  if (!auth.ok) {
+    return auth.response;
   }
 
   const state = await readPlatformState();
@@ -25,10 +67,9 @@ export async function GET() {
 }
 
 export async function PATCH(request: Request) {
-  const session = await getSessionPayload();
-  if (!session || session.role !== 'admin') {
-    metric('admin.users_mutation', 1, { action: 'update', outcome: 'error' });
-    return NextResponse.json({ error: 'Ruxsat yo‘q.' }, { status: 403 });
+  const auth = await requireAdminSession('update');
+  if (!auth.ok) {
+    return auth.response;
   }
 
   try {
@@ -43,12 +84,22 @@ export async function PATCH(request: Request) {
       );
     }
 
-    if (body.new_password && body.new_password.trim().length < 6) {
+    const nextPassword =
+      typeof body.new_password === 'string' ? body.new_password.trim() : '';
+    if (nextPassword && nextPassword.length < 6) {
       return NextResponse.json(
         { error: 'Yangi parol kamida 6 ta belgidan iborat bo‘lishi kerak.' },
         { status: 400 }
       );
     }
+
+    const rawPoints: unknown = body.points;
+    const parsedPoints =
+      typeof rawPoints === 'number'
+        ? rawPoints
+        : typeof rawPoints === 'string' && rawPoints.trim() !== ''
+          ? Number(rawPoints)
+          : NaN;
 
     const result = await mutatePlatformState<{
       status: number;
@@ -105,16 +156,16 @@ export async function PATCH(request: Request) {
         subject_slug: nextSubjectSlug,
         avatar_url: nextAvatar,
         points:
-          typeof body.points === 'number' && body.points >= 0
-            ? body.points
+          Number.isFinite(parsedPoints) && parsedPoints >= 0
+            ? Math.floor(parsedPoints)
             : current.points,
         is_verified:
           typeof body.is_verified === 'boolean'
             ? body.is_verified
             : current.is_verified,
         password:
-          body.new_password && body.new_password.trim().length >= 6
-            ? hashPassword(body.new_password.trim())
+          nextPassword.length >= 6
+            ? hashPassword(nextPassword)
             : current.password,
       };
 
@@ -154,11 +205,11 @@ export async function PATCH(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  const session = await getSessionPayload();
-  if (!session || session.role !== 'admin') {
-    metric('admin.users_mutation', 1, { action: 'delete', outcome: 'error' });
-    return NextResponse.json({ error: 'Ruxsat yo‘q.' }, { status: 403 });
+  const auth = await requireAdminSession('delete');
+  if (!auth.ok) {
+    return auth.response;
   }
+  const { session } = auth;
 
   const { searchParams } = new URL(request.url);
   const id = searchParams.get('id');

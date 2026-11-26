@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 import { PublicUser, Teacher } from '@/lib/types';
 import {
   Search,
@@ -10,6 +11,8 @@ import {
   Save,
   X,
   Lock,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import AvatarUploader from '@/components/AvatarUploader';
 
@@ -18,6 +21,7 @@ interface UsersManagerProps {
   teachers: Teacher[];
   currentAdminId: string;
   onUsersChange: (next: PublicUser[]) => void;
+  onAuthError?: (message: string) => void;
 }
 
 export default function UsersManager({
@@ -25,6 +29,7 @@ export default function UsersManager({
   teachers,
   currentAdminId,
   onUsersChange,
+  onAuthError,
 }: UsersManagerProps) {
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState<'all' | 'student' | 'teacher' | 'admin'>('all');
@@ -33,6 +38,8 @@ export default function UsersManager({
   >(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [authBlocked, setAuthBlocked] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
 
   const filtered = users.filter((u) => {
     if (roleFilter !== 'all' && u.role !== roleFilter) return false;
@@ -49,26 +56,35 @@ export default function UsersManager({
     e.preventDefault();
     if (!editing?.id) return;
     setError('');
+    setAuthBlocked(false);
     setSaving(true);
 
     try {
       const res = await fetch('/api/users', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
         body: JSON.stringify(editing),
       });
       const data = (await res.json()) as {
         user?: PublicUser;
         error?: string;
+        code?: string;
       };
       if (!res.ok || !data.user) {
-        setError(data.error || 'Yangilashda xatolik.');
+        const errMsg = data.error || 'Yangilashda xatolik.';
+        setError(errMsg);
+        if (res.status === 401 || res.status === 403) {
+          setAuthBlocked(true);
+          onAuthError?.(errMsg);
+        }
         setSaving(false);
         return;
       }
 
       onUsersChange(users.map((u) => (u.id === data.user!.id ? data.user! : u)));
       setEditing(null);
+      setShowNewPassword(false);
     } catch {
       setError('Server bilan aloqada xatolik.');
     } finally {
@@ -82,9 +98,18 @@ export default function UsersManager({
 
     const res = await fetch(`/api/users?id=${encodeURIComponent(id)}`, {
       method: 'DELETE',
+      credentials: 'same-origin',
     });
     if (res.ok) {
       onUsersChange(users.filter((u) => u.id !== id));
+    } else {
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      const errMsg = data.error || 'O‘chirishda xatolik yuz berdi.';
+      if (res.status === 401 || res.status === 403) {
+        onAuthError?.(errMsg);
+      } else {
+        alert(errMsg);
+      }
     }
   };
 
@@ -204,6 +229,8 @@ export default function UsersManager({
                         type="button"
                         onClick={() => {
                           setError('');
+                          setAuthBlocked(false);
+                          setShowNewPassword(false);
                           setEditing({ ...u, new_password: '' });
                         }}
                         className="p-2 rounded-xl bg-white/5 hover:bg-purple-500/20 text-purple-300 cursor-pointer"
@@ -248,8 +275,16 @@ export default function UsersManager({
             </h4>
 
             {error && (
-              <div className="mb-3 p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-xs text-rose-300">
-                ⚠️ {error}
+              <div className="mb-3 p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-xs text-rose-300 space-y-2">
+                <p>⚠️ {error}</p>
+                {authBlocked && (
+                  <Link
+                    href="/login?next=/admin"
+                    className="inline-flex items-center px-3 py-1.5 rounded-lg bg-rose-500 hover:bg-rose-400 text-white font-bold transition-colors"
+                  >
+                    Admin sifatida qayta kirish
+                  </Link>
+                )}
               </div>
             )}
 
@@ -356,15 +391,31 @@ export default function UsersManager({
                   <Lock className="w-3.5 h-3.5 text-pink-400" />
                   <span>Parolni yangilash (ixtiyoriy, min 6 belgi)</span>
                 </label>
-                <input
-                  type="password"
-                  value={editing.new_password || ''}
-                  onChange={(e) =>
-                    setEditing({ ...editing, new_password: e.target.value })
-                  }
-                  placeholder="O‘zgartirmaslik uchun bo‘sh qoldiring"
-                  className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-purple-700/40 text-sm text-white"
-                />
+                <div className="relative">
+                  <input
+                    type={showNewPassword ? 'text' : 'password'}
+                    value={editing.new_password || ''}
+                    onChange={(e) =>
+                      setEditing({ ...editing, new_password: e.target.value })
+                    }
+                    placeholder="O‘zgartirmaslik uchun bo‘sh qoldiring"
+                    className="w-full px-4 py-2.5 pr-11 rounded-xl bg-white/5 border border-purple-700/40 text-sm text-white"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPassword((v) => !v)}
+                    aria-label={
+                      showNewPassword ? 'Parolni yashirish' : 'Parolni ko‘rsatish'
+                    }
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white cursor-pointer"
+                  >
+                    {showNewPassword ? (
+                      <EyeOff className="w-4 h-4" />
+                    ) : (
+                      <Eye className="w-4 h-4" />
+                    )}
+                  </button>
+                </div>
               </div>
 
               <div className="flex justify-end gap-2 pt-2">

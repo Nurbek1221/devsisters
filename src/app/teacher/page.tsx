@@ -19,9 +19,9 @@ import {
   Languages,
 } from 'lucide-react';
 import {
-  getStoredUser,
   logoutUser,
   refreshCurrentUser,
+  subscribeAuthChanges,
   updateUserProfile,
 } from '@/lib/auth';
 import { INITIAL_LESSONS, INITIAL_TEACHERS } from '@/lib/data';
@@ -59,9 +59,7 @@ export default function TeacherDashboardPage() {
   const [formError, setFormError] = useState('');
 
   const loadTeacherData = useCallback(async () => {
-    const cached = getStoredUser();
-    const fresh = await refreshCurrentUser();
-    const current = fresh || cached;
+    const current = await refreshCurrentUser();
 
     if (!current || (current.role !== 'teacher' && current.role !== 'admin')) {
       router.push('/login?next=/teacher');
@@ -104,6 +102,12 @@ export default function TeacherDashboardPage() {
       void loadTeacherData();
     }, 0);
     return () => clearTimeout(timer);
+  }, [loadTeacherData]);
+
+  useEffect(() => {
+    return subscribeAuthChanges(() => {
+      void loadTeacherData();
+    });
   }, [loadTeacherData]);
 
   const teacherSubjectSlug = user?.subject_slug || 'it-dasturlash';

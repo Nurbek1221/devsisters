@@ -1,6 +1,65 @@
 import { PublicUser, User } from './types';
 
 const USER_STORAGE_KEY = 'devsisters_active_user';
+const AUTH_CHANNEL_NAME = 'devsisters_auth';
+
+function broadcastAuthChange(user: PublicUser | null): void {
+  if (typeof window === 'undefined' || typeof BroadcastChannel === 'undefined') {
+    return;
+  }
+  try {
+    const channel = new BroadcastChannel(AUTH_CHANNEL_NAME);
+    channel.postMessage({
+      userId: user?.id ?? null,
+      role: user?.role ?? null,
+    });
+    channel.close();
+  } catch {
+    // Ignore channel errors on unsupported browsers
+  }
+}
+
+export function subscribeAuthChanges(onChange: () => void): () => void {
+  if (typeof window === 'undefined') return () => {};
+
+  const handleStorage = (e: StorageEvent) => {
+    if (e.key === null || e.key === USER_STORAGE_KEY) {
+      onChange();
+    }
+  };
+  const handleVisibility = () => {
+    if (typeof document !== 'undefined' && !document.hidden) {
+      onChange();
+    }
+  };
+
+  window.addEventListener('storage', handleStorage);
+  window.addEventListener('focus', onChange);
+  document.addEventListener('visibilitychange', handleVisibility);
+
+  let channel: BroadcastChannel | null = null;
+  if (typeof BroadcastChannel !== 'undefined') {
+    try {
+      channel = new BroadcastChannel(AUTH_CHANNEL_NAME);
+      channel.onmessage = () => onChange();
+    } catch {
+      channel = null;
+    }
+  }
+
+  return () => {
+    window.removeEventListener('storage', handleStorage);
+    window.removeEventListener('focus', onChange);
+    document.removeEventListener('visibilitychange', handleVisibility);
+    if (channel) {
+      try {
+        channel.close();
+      } catch {
+        // Ignore
+      }
+    }
+  };
+}
 
 export function getStoredUser(): PublicUser | null {
   if (typeof window === 'undefined') return null;
@@ -21,6 +80,7 @@ export function setStoredUser(user: PublicUser | null): void {
   if (!user) {
     localStorage.removeItem(USER_STORAGE_KEY);
     sessionStorage.removeItem('devsisters_admin_auth');
+    broadcastAuthChange(null);
   } else {
     const { password: _ignored, ...safeUser } = user as User;
     void _ignored;
@@ -30,6 +90,7 @@ export function setStoredUser(user: PublicUser | null): void {
     } else {
       sessionStorage.removeItem('devsisters_admin_auth');
     }
+    broadcastAuthChange(safeUser);
   }
 }
 

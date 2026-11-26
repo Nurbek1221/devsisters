@@ -21,10 +21,10 @@ import {
   Star,
 } from 'lucide-react';
 import {
-  getStoredUser,
   logoutUser,
   refreshCurrentUser,
   setStoredUser,
+  subscribeAuthChanges,
   updateUserProfile,
 } from '@/lib/auth';
 import {
@@ -100,13 +100,7 @@ export default function StudentDashboardPage() {
   );
 
   const loadDashboard = useCallback(async () => {
-    const cached = getStoredUser();
-    if (cached) {
-      setUser(cached);
-    }
-
-    const freshUser = await refreshCurrentUser();
-    const resolvedUser = freshUser || cached;
+    const resolvedUser = await refreshCurrentUser();
 
     if (!resolvedUser) {
       router.push('/login?next=/student');
@@ -185,6 +179,12 @@ export default function StudentDashboardPage() {
       void loadDashboard();
     }, 0);
     return () => clearTimeout(timer);
+  }, [loadDashboard]);
+
+  useEffect(() => {
+    return subscribeAuthChanges(() => {
+      void loadDashboard();
+    });
   }, [loadDashboard]);
 
   const handleToggleLessonComplete = async (lessonId: string) => {
