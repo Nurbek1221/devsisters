@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, connection } from 'next/server';
 import { metric } from '@vercel/functions';
 import { getSessionPayload } from '@/lib/server/auth-crypto';
 import { mutatePlatformState, readPlatformState } from '@/lib/server/db';
@@ -18,6 +18,7 @@ function nowTimeString(): string {
 }
 
 export async function GET() {
+  await connection();
   const state = await readPlatformState();
   return NextResponse.json(
     {

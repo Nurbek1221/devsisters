@@ -419,32 +419,66 @@ function hasBlobToken(): boolean {
   return Boolean(process.env.BLOB_READ_WRITE_TOKEN?.trim());
 }
 
+const RETAIN_SNAPSHOTS = 25;
+const MIN_DELETE_AGE_MS = 2 * 60 * 1000;
+
+async function tryReadSnapshotUrl(url: string): Promise<PlatformState | null> {
+  try {
+    const res = await fetch(url, { cache: 'no-store' });
+    if (!res.ok) {
+      console.warn(`[db] snapshot HTTP ${res.status}: ${url}`);
+      return null;
+    }
+    const parsed = (await res.json()) as Partial<PlatformState>;
+    return normalizeState(parsed);
+  } catch (err) {
+    console.error(`[db] snapshot read/normalize failed for ${url}:`, err);
+    return null;
+  }
+}
+
 /**
  * Reads platform state from immutable versioned Blob snapshots (`devsisters-db/state/<ts>-<id>.json`).
  * Avoids CDN overwrite propagation delays so writes are visible immediately across all serverless regions.
  */
 export async function readPlatformState(): Promise<PlatformState> {
   if (hasBlobToken()) {
-    const listed = await list({ prefix: STATE_PREFIX });
-    const ordered = [...listed.blobs].sort((a, b) =>
+    const firstList = await list({ prefix: STATE_PREFIX });
+    const ordered = [...firstList.blobs].sort((a, b) =>
       b.pathname.localeCompare(a.pathname)
     );
 
-    for (const candidate of ordered.slice(0, 3)) {
-      try {
-        const res = await fetch(candidate.url, { cache: 'no-store' });
-        if (res.ok) {
-          const parsed = (await res.json()) as Partial<PlatformState>;
-          const normalized = normalizeState(parsed);
-          memoryState = normalized;
-          return normalized;
-        }
-      } catch {
-        // Try next snapshot if candidate was just rotated out
+    for (const candidate of ordered) {
+      const state = await tryReadSnapshotUrl(candidate.url);
+      if (state) {
+        memoryState = state;
+        return state;
       }
     }
 
-    // One-time migration from legacy fixed-path `devsisters-db/state.json` if present
+    if (ordered.length > 0) {
+      // Wait briefly and retry list() once in case of transient edge replication lag
+      await new Promise((r) => setTimeout(r, 250));
+      const retryList = await list({ prefix: STATE_PREFIX });
+      const retryOrdered = [...retryList.blobs].sort((a, b) =>
+        b.pathname.localeCompare(a.pathname)
+      );
+      for (const candidate of retryOrdered) {
+        const state = await tryReadSnapshotUrl(candidate.url);
+        if (state) {
+          memoryState = state;
+          return state;
+        }
+      }
+
+      if (memoryState) {
+        console.warn('[db] Using in-memory fallback after snapshot read failures.');
+        return memoryState;
+      }
+      throw new Error('Platforma ma’lumotlar bazasini o‘qib bo‘lmadi (snapshotlar vaqtincha javob bermadi).');
+    }
+
+    // Only initialize/migrate when `devsisters-db/state/` is completely empty
     try {
       const legacy = await get(LEGACY_STATE_BLOB_PATHNAME, {
         access: 'public',
@@ -458,8 +492,8 @@ export async function readPlatformState(): Promise<PlatformState> {
         await writePlatformState(normalized);
         return normalized;
       }
-    } catch {
-      // No legacy state present
+    } catch (err) {
+      console.error('[db] Legacy state migration failed:', err);
     }
 
     const seeded = createInitialState();
@@ -488,15 +522,21 @@ export async function writePlatformState(
       access: 'public',
       addRandomSuffix: false,
       contentType: 'application/json',
+      cacheControlMaxAge: 0,
     });
 
-    // Retain latest 5 immutable snapshots so concurrent readers never hit 404
+    // Retain at least 25 snapshots and never delete blobs younger than 2 minutes
+    // so eventually-consistent list() calls never see 404 URLs.
     try {
       const listed = await list({ prefix: STATE_PREFIX });
       const ordered = [...listed.blobs].sort((a, b) =>
         b.pathname.localeCompare(a.pathname)
       );
-      const stale = ordered.slice(5).map((b) => b.url);
+      const cutoff = Date.now() - MIN_DELETE_AGE_MS;
+      const stale = ordered
+        .slice(RETAIN_SNAPSHOTS)
+        .filter((b) => b.uploadedAt.getTime() < cutoff)
+        .map((b) => b.url);
       if (stale.length > 0) {
         await del(stale);
       }

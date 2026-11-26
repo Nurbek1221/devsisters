@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, connection } from 'next/server';
 import { metric } from '@vercel/functions';
 import { getSessionPayload } from '@/lib/server/auth-crypto';
 import {
@@ -9,6 +9,7 @@ import {
 import { Lesson } from '@/lib/types';
 
 export async function GET(request: Request) {
+  await connection();
   const { searchParams } = new URL(request.url);
   const subjectSlug = searchParams.get('subject_slug');
   const state = await readPlatformState();

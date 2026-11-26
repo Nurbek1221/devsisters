@@ -1,8 +1,9 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, connection } from 'next/server';
 import { readPlatformState } from '@/lib/server/db';
 import { LeaderboardEntry } from '@/lib/types';
 
 export async function GET() {
+  await connection();
   const state = await readPlatformState();
 
   const teachers = [...state.teachers]
