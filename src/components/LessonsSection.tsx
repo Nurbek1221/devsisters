@@ -137,10 +137,14 @@ export default function LessonsSection({
           <div className="text-center py-16 bg-[#1a1033]/50 border border-purple-800/30 rounded-3xl">
             <Sparkles className="w-10 h-10 text-pink-400/50 mx-auto mb-3" />
             <h3 className="text-lg font-bold text-white">
-              Mos darslar topilmadi
+              {lessons.length === 0
+                ? 'Hozircha video darslar joylanmagan'
+                : 'Mos darslar topilmadi'}
             </h3>
             <p className="text-slate-400 text-sm mt-1">
-              Boshqa fan yo‘nalishini tanlang yoki qidiruv so‘zini o‘zgartiring.
+              {lessons.length === 0
+                ? 'Tez orada ustozlar va admin tomonidan yangi video darslar yuklanadi.'
+                : 'Boshqa fan yo‘nalishini tanlang yoki qidiruv so‘zini o‘zgartiring.'}
             </p>
           </div>
         ) : (

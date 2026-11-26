@@ -26,7 +26,6 @@ import {
 } from '@/lib/types';
 import {
   INITIAL_TEACHERS,
-  INITIAL_LESSONS,
   INITIAL_QUIZZES,
   INITIAL_PRACTICE,
 } from '@/lib/data';
@@ -34,7 +33,7 @@ import { getStoredUser } from '@/lib/auth';
 
 export default function Home() {
   const [teachers, setTeachers] = useState<Teacher[]>(INITIAL_TEACHERS);
-  const [lessons, setLessons] = useState<Lesson[]>(INITIAL_LESSONS);
+  const [lessons, setLessons] = useState<Lesson[]>([]);
   const [quizzes, setQuizzes] = useState<Quiz[]>(INITIAL_QUIZZES);
   const [practiceItems, setPracticeItems] =
     useState<PracticeItem[]>(INITIAL_PRACTICE);
@@ -74,7 +73,7 @@ export default function Home() {
         };
         if (!active) return;
         if (data.teachers?.length) setTeachers(data.teachers);
-        if (data.lessons?.length) setLessons(data.lessons);
+        if (Array.isArray(data.lessons)) setLessons(data.lessons);
         if (data.quizzes?.length) setQuizzes(data.quizzes);
         if (data.practice_items?.length) setPracticeItems(data.practice_items);
         if (data.leaderboard?.length) setLeaderboard(data.leaderboard);
@@ -83,8 +82,13 @@ export default function Home() {
       }
     }
     loadPlatform();
+    const handleFocus = () => {
+      void loadPlatform();
+    };
+    window.addEventListener('focus', handleFocus);
     return () => {
       active = false;
+      window.removeEventListener('focus', handleFocus);
     };
   }, []);
 

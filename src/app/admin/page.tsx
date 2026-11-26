@@ -21,7 +21,7 @@ import {
   subscribeAuthChanges,
   updateUserProfile,
 } from '@/lib/auth';
-import { INITIAL_TEACHERS, INITIAL_LESSONS } from '@/lib/data';
+import { INITIAL_TEACHERS } from '@/lib/data';
 import { Lesson, PracticeItem, PublicUser, Teacher } from '@/lib/types';
 import VideoModal from '@/components/VideoModal';
 import CommunityChat from '@/components/CommunityChat';
@@ -49,7 +49,7 @@ export default function AdminDashboardPage() {
   const [activeTab, setActiveTab] = useState<AdminTab>('overview');
 
   const [teachers, setTeachers] = useState<Teacher[]>(INITIAL_TEACHERS);
-  const [lessons, setLessons] = useState<Lesson[]>(INITIAL_LESSONS);
+  const [lessons, setLessons] = useState<Lesson[]>([]);
   const [users, setUsers] = useState<PublicUser[]>([]);
   const [practiceItems, setPracticeItems] = useState<PracticeItem[]>([]);
   const [previewLesson, setPreviewLesson] = useState<Lesson | null>(null);
@@ -87,7 +87,7 @@ export default function AdminDashboardPage() {
           lessons?: Lesson[];
         };
         if (plat.teachers?.length) setTeachers(plat.teachers);
-        if (plat.lessons?.length) setLessons(plat.lessons);
+        if (Array.isArray(plat.lessons)) setLessons(plat.lessons);
       }
 
       if (teachersRes.ok) {
@@ -125,6 +125,29 @@ export default function AdminDashboardPage() {
     }, 0);
     return () => clearTimeout(timer);
   }, [loadAdminData]);
+
+  useEffect(() => {
+    if (!user || activeTab !== 'lessons') return;
+    let active = true;
+    void (async () => {
+      try {
+        const res = await fetch('/api/platform', { cache: 'no-store' });
+        if (!res.ok || !active) return;
+        const plat = (await res.json()) as {
+          teachers?: Teacher[];
+          lessons?: Lesson[];
+        };
+        if (!active) return;
+        if (plat.teachers?.length) setTeachers(plat.teachers);
+        if (Array.isArray(plat.lessons)) setLessons(plat.lessons);
+      } catch {
+        // ignore transient refresh failure
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [activeTab, user]);
 
   useEffect(() => {
     return subscribeAuthChanges(() => {

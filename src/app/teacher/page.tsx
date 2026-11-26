@@ -24,7 +24,7 @@ import {
   subscribeAuthChanges,
   updateUserProfile,
 } from '@/lib/auth';
-import { INITIAL_LESSONS, INITIAL_TEACHERS } from '@/lib/data';
+import { INITIAL_TEACHERS } from '@/lib/data';
 import { Lesson, PracticeItem, PublicUser, Teacher } from '@/lib/types';
 import VideoModal from '@/components/VideoModal';
 import CommunityChat from '@/components/CommunityChat';
@@ -41,7 +41,7 @@ export default function TeacherDashboardPage() {
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
 
   const [teachers, setTeachers] = useState<Teacher[]>(INITIAL_TEACHERS);
-  const [lessons, setLessons] = useState<Lesson[]>(INITIAL_LESSONS);
+  const [lessons, setLessons] = useState<Lesson[]>([]);
   const [practiceItems, setPracticeItems] = useState<PracticeItem[]>([]);
   const [students, setStudents] = useState<PracticeStudentOption[]>([]);
   const [activeTab, setActiveTab] = useState<
@@ -81,7 +81,7 @@ export default function TeacherDashboardPage() {
           lessons?: Lesson[];
         };
         if (data.teachers?.length) setTeachers(data.teachers);
-        if (data.lessons?.length) setLessons(data.lessons);
+        if (Array.isArray(data.lessons)) setLessons(data.lessons);
       }
 
       if (pracRes.ok) {
@@ -105,9 +105,42 @@ export default function TeacherDashboardPage() {
   }, [loadTeacherData]);
 
   useEffect(() => {
-    return subscribeAuthChanges(() => {
+    const unsubscribeAuth = subscribeAuthChanges(() => {
       void loadTeacherData();
     });
+    const refreshPlatformOnFocus = () => {
+      void (async () => {
+        try {
+          const [platRes, pracRes] = await Promise.all([
+            fetch('/api/platform', { cache: 'no-store' }),
+            fetch('/api/practice?include_students=1', { cache: 'no-store' }),
+          ]);
+          if (platRes.ok) {
+            const data = (await platRes.json()) as {
+              teachers?: Teacher[];
+              lessons?: Lesson[];
+            };
+            if (data.teachers?.length) setTeachers(data.teachers);
+            if (Array.isArray(data.lessons)) setLessons(data.lessons);
+          }
+          if (pracRes.ok) {
+            const pData = (await pracRes.json()) as {
+              practice_items?: PracticeItem[];
+              students?: PracticeStudentOption[];
+            };
+            if (pData.practice_items) setPracticeItems(pData.practice_items);
+            if (pData.students) setStudents(pData.students);
+          }
+        } catch {
+          // ignore transient refresh failure
+        }
+      })();
+    };
+    window.addEventListener('focus', refreshPlatformOnFocus);
+    return () => {
+      unsubscribeAuth();
+      window.removeEventListener('focus', refreshPlatformOnFocus);
+    };
   }, [loadTeacherData]);
 
   const teacherSubjectSlug = user?.subject_slug || 'it-dasturlash';
@@ -183,12 +216,16 @@ export default function TeacherDashboardPage() {
     try {
       const res = await fetch(`/api/lessons?id=${encodeURIComponent(id)}`, {
         method: 'DELETE',
+        credentials: 'same-origin',
       });
       if (res.ok) {
         setLessons((prev) => prev.filter((l) => l.id !== id));
+      } else {
+        const err = (await res.json().catch(() => ({}))) as { error?: string };
+        alert(err.error || 'Darsni o‘chirishda xatolik yuz berdi.');
       }
     } catch {
-      // ignore
+      alert('Server bilan aloqada xatolik yuz berdi.');
     }
   };
 
@@ -336,9 +373,36 @@ export default function TeacherDashboardPage() {
         </div>
 
         {/* Lessons List */}
-        {activeTab === 'lessons' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {myLessons.map((lesson) => {
+        {activeTab === 'lessons' &&
+          (myLessons.length === 0 ? (
+            <div className="bg-[#160c2e] border border-purple-800/40 rounded-3xl p-10 text-center space-y-4 shadow-xl">
+              <div className="w-14 h-14 rounded-2xl bg-pink-500/15 border border-pink-500/30 flex items-center justify-center mx-auto text-pink-400">
+                <BookOpen className="w-7 h-7" />
+              </div>
+              <div className="space-y-1 max-w-md mx-auto">
+                <h3 className="text-lg font-extrabold text-white">
+                  Hozircha video darslar yo‘q
+                </h3>
+                <p className="text-xs sm:text-sm text-slate-400">
+                  Siz qo‘shgan yoki Admin paneldan{' '}
+                  <strong className="text-pink-300">
+                    {currentTeacherInfo?.subject || teacherSubjectSlug}
+                  </strong>{' '}
+                  fani uchun yuklangan video darslar shu yerda ko‘rinadi.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleOpenAdd}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-pink-600 to-rose-600 text-white text-xs sm:text-sm font-bold shadow-lg shadow-pink-600/30 cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Birinchi Video Darsni Qo‘shish</span>
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {myLessons.map((lesson) => {
               return (
                 <div
                   key={lesson.id}
@@ -400,9 +464,9 @@ export default function TeacherDashboardPage() {
                   </div>
                 </div>
               );
-            })}
-          </div>
-        )}
+              })}
+            </div>
+          ))}
 
         {/* Per-student Vocabulary & Exercise Manager */}
         {activeTab === 'practice' && (

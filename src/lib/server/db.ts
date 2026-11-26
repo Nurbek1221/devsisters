@@ -17,7 +17,6 @@ import {
   UserProgress,
 } from '../types';
 import {
-  INITIAL_LESSONS,
   INITIAL_POSTS,
   INITIAL_PRACTICE,
   INITIAL_QUIZZES,
@@ -276,7 +275,7 @@ function createInitialState(): PlatformState {
   return {
     users: createInitialUsers(),
     teachers: INITIAL_TEACHERS.map((t) => ({ ...t })),
-    lessons: INITIAL_LESSONS.map((l) => ({ ...l })),
+    lessons: [],
     quizzes: INITIAL_QUIZZES.map((q) => ({ ...q })),
     practice_items: INITIAL_PRACTICE.map((p) => ({ ...p })),
     user_progress: [
@@ -317,21 +316,13 @@ function normalizeState(raw: Partial<PlatformState>): PlatformState {
     if (itTeacher) teachers.push(itTeacher);
   }
 
-  const lessons = (
-    Array.isArray(raw.lessons) && raw.lessons.length > 0
-      ? raw.lessons
-      : base.lessons
-  ).map((l) => {
-    const url = (l.video_url || '').trim();
-    // Clean only the old dummy rickroll placeholder while keeping real YouTube lessons
-    return url.includes('dQw4w9WgXcQ') ? { ...l, video_url: '' } : l;
-  });
-  if (!lessons.some((l) => l.subject_slug === 'it-dasturlash')) {
-    const itLesson = base.lessons.find(
-      (l) => l.subject_slug === 'it-dasturlash'
-    );
-    if (itLesson) lessons.push(itLesson);
-  }
+  const lessons = Array.isArray(raw.lessons)
+    ? raw.lessons.map((l) => {
+        const url = (l.video_url || '').trim();
+        // Clean only the old dummy rickroll placeholder while keeping real lessons
+        return url.includes('dQw4w9WgXcQ') ? { ...l, video_url: '' } : l;
+      })
+    : [];
 
   const quizzes =
     Array.isArray(raw.quizzes) && raw.quizzes.length > 0

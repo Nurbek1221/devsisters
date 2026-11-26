@@ -29,7 +29,6 @@ import {
 } from '@/lib/auth';
 import {
   INITIAL_TEACHERS,
-  INITIAL_LESSONS,
   INITIAL_QUIZZES,
   INITIAL_PRACTICE,
 } from '@/lib/data';
@@ -61,7 +60,7 @@ export default function StudentDashboardPage() {
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
 
   const [teachers, setTeachers] = useState<Teacher[]>(INITIAL_TEACHERS);
-  const [lessons, setLessons] = useState<Lesson[]>(INITIAL_LESSONS);
+  const [lessons, setLessons] = useState<Lesson[]>([]);
   const [quizzes, setQuizzes] = useState<Quiz[]>(INITIAL_QUIZZES);
   const [practiceItems, setPracticeItems] =
     useState<PracticeItem[]>(INITIAL_PRACTICE);
@@ -126,7 +125,7 @@ export default function StudentDashboardPage() {
           leaderboard?: LeaderboardEntry[];
         };
         if (plat.teachers?.length) setTeachers(plat.teachers);
-        if (plat.lessons?.length) setLessons(plat.lessons);
+        if (Array.isArray(plat.lessons)) setLessons(plat.lessons);
         if (plat.quizzes?.length) setQuizzes(plat.quizzes);
         if (plat.practice_items?.length) setPracticeItems(plat.practice_items);
         if (plat.leaderboard?.length) setLeaderboard(plat.leaderboard);

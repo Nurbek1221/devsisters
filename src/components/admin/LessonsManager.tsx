@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { Lesson, Teacher } from '@/lib/types';
-import { Plus, Edit, Trash2, Play, Save, X, Clock } from 'lucide-react';
+import { Plus, Edit, Trash2, Play, Save, X, Clock, Video } from 'lucide-react';
 import VideoLessonUploader from '@/components/VideoLessonUploader';
 import LessonVideoThumbnail from '@/components/LessonVideoThumbnail';
 
@@ -83,11 +83,19 @@ export default function LessonsManager({
 
   const handleDelete = async (id: string) => {
     if (!confirm('Darsni o‘chirishni tasdiqlaysizmi?')) return;
-    const res = await fetch(`/api/lessons?id=${encodeURIComponent(id)}`, {
-      method: 'DELETE',
-    });
-    if (res.ok) {
-      onLessonsChange(lessons.filter((l) => l.id !== id));
+    try {
+      const res = await fetch(`/api/lessons?id=${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+        credentials: 'same-origin',
+      });
+      if (res.ok) {
+        onLessonsChange(lessons.filter((l) => l.id !== id));
+      } else {
+        const err = (await res.json().catch(() => ({}))) as { error?: string };
+        alert(err.error || 'Darsni o‘chirishda xatolik.');
+      }
+    } catch {
+      alert('Server bilan aloqa xatosi.');
     }
   };
 
@@ -143,74 +151,109 @@ export default function LessonsManager({
         ))}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        {filtered.map((lesson) => {
-          return (
-            <div
-              key={lesson.id}
-              className="bg-[#160c2e] border border-purple-800/40 rounded-3xl overflow-hidden flex flex-col justify-between shadow-xl"
-            >
+      {filtered.length === 0 ? (
+        <div className="bg-[#160c2e] border border-purple-800/40 rounded-3xl p-10 text-center space-y-4 shadow-xl">
+          <div className="w-14 h-14 rounded-2xl bg-pink-500/15 border border-pink-500/30 flex items-center justify-center mx-auto text-pink-400">
+            <Video className="w-7 h-7" />
+          </div>
+          <div className="space-y-1 max-w-md mx-auto">
+            <h4 className="text-base font-extrabold text-white">
+              Hozircha video darslar yo‘q
+            </h4>
+            <p className="text-xs text-slate-400">
+              Admin paneldan qaysi fan tanlanib video qo‘shilsa, shu fan
+              o‘qituvchisining kabinetida ham ko‘rinadi; ustozlar qo‘shgan
+              videolar esa bu yerda chiqadi.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={handleOpenAdd}
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-pink-600 to-rose-600 text-white text-xs font-bold cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Yangi Video Dars Qo‘shish</span>
+          </button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          {filtered.map((lesson) => {
+            const ownerTeacher = teachers.find(
+              (t) => t.slug === lesson.subject_slug
+            );
+            return (
               <div
-                onClick={() => onPreviewLesson(lesson)}
-                className="relative h-40 bg-gradient-to-br from-[#231247] to-[#120826] cursor-pointer group flex items-center justify-center overflow-hidden"
+                key={lesson.id}
+                className="bg-[#160c2e] border border-purple-800/40 rounded-3xl overflow-hidden flex flex-col justify-between shadow-xl"
               >
-                <LessonVideoThumbnail
-                  videoUrl={lesson.video_url}
-                  title={lesson.title}
-                  emptyLabel="Video joylanmagan"
-                />
+                <div
+                  onClick={() => onPreviewLesson(lesson)}
+                  className="relative h-40 bg-gradient-to-br from-[#231247] to-[#120826] cursor-pointer group flex items-center justify-center overflow-hidden"
+                >
+                  <LessonVideoThumbnail
+                    videoUrl={lesson.video_url}
+                    title={lesson.title}
+                    emptyLabel="Video joylanmagan"
+                  />
 
-                <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
-                  <div className="w-11 h-11 rounded-full bg-pink-600/90 text-white flex items-center justify-center">
-                    <Play className="w-5 h-5 fill-white ml-0.5" />
+                  <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                    <div className="w-11 h-11 rounded-full bg-pink-600/90 text-white flex items-center justify-center">
+                      <Play className="w-5 h-5 fill-white ml-0.5" />
+                    </div>
+                  </div>
+
+                  <div className="absolute top-2.5 left-2.5 px-2.5 py-0.5 rounded-full bg-black/75 text-[11px] font-bold text-pink-300">
+                    {ownerTeacher?.subject || lesson.subject_slug} •{' '}
+                    {lesson.order_num}-dars
+                  </div>
+                  <div className="absolute bottom-2.5 right-2.5 px-2 py-0.5 rounded-lg bg-black/75 text-[11px] font-bold text-slate-200 flex items-center gap-1">
+                    <Clock className="w-3 h-3 text-pink-400" />
+                    <span>{lesson.duration}</span>
                   </div>
                 </div>
 
-                <div className="absolute top-2.5 left-2.5 px-2.5 py-0.5 rounded-full bg-black/75 text-[11px] font-bold text-pink-300">
-                  {lesson.subject_slug} • {lesson.order_num}-dars
-                </div>
-                <div className="absolute bottom-2.5 right-2.5 px-2 py-0.5 rounded-lg bg-black/75 text-[11px] font-bold text-slate-200 flex items-center gap-1">
-                  <Clock className="w-3 h-3 text-pink-400" />
-                  <span>{lesson.duration}</span>
+                <div className="p-4 space-y-3 flex-1 flex flex-col justify-between">
+                  <div>
+                    <h4 className="text-sm font-bold text-white line-clamp-2">
+                      {lesson.title}
+                    </h4>
+                    <p className="text-xs text-slate-400 mt-1 line-clamp-2">
+                      {lesson.description}
+                    </p>
+                    {ownerTeacher && (
+                      <p className="text-[11px] text-purple-300 mt-1.5 font-semibold">
+                        Ustoz: {ownerTeacher.name}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-between pt-3 border-t border-purple-900/40">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setError('');
+                        setEditing({ ...lesson });
+                      }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/5 hover:bg-purple-500/20 text-xs font-bold text-purple-300 cursor-pointer"
+                    >
+                      <Edit className="w-3.5 h-3.5" />
+                      <span>Tahrirlash</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(lesson.id)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-xs font-bold text-rose-400 cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>O‘chirish</span>
+                    </button>
+                  </div>
                 </div>
               </div>
-
-              <div className="p-4 space-y-3 flex-1 flex flex-col justify-between">
-                <div>
-                  <h4 className="text-sm font-bold text-white line-clamp-2">
-                    {lesson.title}
-                  </h4>
-                  <p className="text-xs text-slate-400 mt-1 line-clamp-2">
-                    {lesson.description}
-                  </p>
-                </div>
-
-                <div className="flex items-center justify-between pt-3 border-t border-purple-900/40">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setError('');
-                      setEditing({ ...lesson });
-                    }}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/5 hover:bg-purple-500/20 text-xs font-bold text-purple-300 cursor-pointer"
-                  >
-                    <Edit className="w-3.5 h-3.5" />
-                    <span>Tahrirlash</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleDelete(lesson.id)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-xs font-bold text-rose-400 cursor-pointer"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    <span>O‘chirish</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
 
       {editing && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 animate-fade-in overflow-y-auto">
@@ -249,7 +292,7 @@ export default function LessonsManager({
                   >
                     {teachers.map((t) => (
                       <option key={t.id} value={t.slug}>
-                        {t.subject}
+                        {t.subject} — {t.name}
                       </option>
                     ))}
                   </select>

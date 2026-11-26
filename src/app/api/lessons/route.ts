@@ -66,9 +66,14 @@ export async function POST(request: Request) {
       const nextOrder =
         draft.lessons.filter((l) => l.subject_slug === subjectSlug).length + 1;
 
+      const matchedTeacher = draft.teachers.find(
+        (t) => t.slug === subjectSlug
+      );
+
       const newLesson: Lesson = {
         id: `l-${Date.now()}`,
-        teacher_id: body.teacher_id || currentUser?.id,
+        teacher_id:
+          body.teacher_id || matchedTeacher?.id || currentUser?.id,
         subject_slug: subjectSlug,
         title,
         description: (body.description || '').trim(),
