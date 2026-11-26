@@ -1,5 +1,4 @@
 import { upload } from '@vercel/blob/client';
-import { getSupabaseClient, isSupabaseConfigured } from './supabase';
 
 export const ALLOWED_VIDEO_TYPES = [
   'video/mp4',
@@ -7,7 +6,7 @@ export const ALLOWED_VIDEO_TYPES = [
   'video/quicktime',
   'video/ogg',
 ];
-export const MAX_VIDEO_BYTES = 100 * 1024 * 1024; // 100 MB
+export const MAX_VIDEO_BYTES = 50 * 1024 * 1024; // 50 MB (Supabase Storage limit)
 
 export const ALLOWED_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
 export const MAX_IMAGE_SOURCE_BYTES = 20 * 1024 * 1024; // 20 MB gacha telefon rasmlari qisqartiriladi
@@ -33,7 +32,7 @@ export function validateVideoFile(file: File): string | null {
   }
   if (file.size > MAX_VIDEO_BYTES) {
     const mb = Math.round(file.size / (1024 * 1024));
-    return `Video fayl hajmi 100 MB dan oshmasligi kerak (tanlangan fayl: ${mb} MB).`;
+    return `Video fayl hajmi 50 MB dan oshmasligi kerak (tanlangan fayl: ${mb} MB).`;
   }
   return null;
 }
@@ -143,9 +142,36 @@ async function prepareCompactAvatarFile(
   }
 }
 
+function putFileWithProgress(
+  signedUrl: string,
+  file: File,
+  contentType: string,
+  onProgress?: (percent: number) => void
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('PUT', signedUrl, true);
+    xhr.setRequestHeader('Content-Type', contentType);
+    xhr.upload.onprogress = (evt) => {
+      if (evt.lengthComputable && onProgress) {
+        onProgress(Math.max(1, Math.min(99, Math.round((evt.loaded / evt.total) * 100))));
+      }
+    };
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve();
+      } else {
+        reject(new Error(`Videoni yuklab bo‘lmadi (HTTP ${xhr.status}).`));
+      }
+    };
+    xhr.onerror = () => reject(new Error('Tarmoq xatosi tufayli video yuklanmadi.'));
+    xhr.send(file);
+  });
+}
+
 /**
- * Upload lesson video to Supabase Storage (`lesson-videos` bucket) if active,
- * or directly to Vercel Blob (`lesson-videos/*`) via client upload token.
+ * Upload lesson video directly via signed Supabase Storage URL (`lesson-videos` bucket),
+ * with Vercel Blob client upload fallback when Supabase is not configured.
  */
 export async function uploadLessonVideo(
   file: File,
@@ -159,38 +185,57 @@ export async function uploadLessonVideo(
 
   const cleanName = sanitizeFileName(file.name);
   const path = `lesson-videos/${subjectSlug || 'general'}/${Date.now()}-${cleanName}`;
+  const contentType = file.type || 'video/mp4';
 
-  const sb = isSupabaseConfigured() ? getSupabaseClient() : null;
-  if (sb) {
-    try {
-      const bucketPath = path.replace(/^lesson-videos\//, '');
-      const { error } = await sb.storage
-        .from('lesson-videos')
-        .upload(bucketPath, file, {
-          cacheControl: '3600',
-          upsert: false,
-          contentType: file.type || 'video/mp4',
-        });
-      if (!error) {
-        const { data } = sb.storage.from('lesson-videos').getPublicUrl(bucketPath);
-        if (data?.publicUrl) {
-          onProgress?.(100);
-          return {
-            url: data.publicUrl,
-            storagePath: `lesson-videos/${bucketPath}`,
-            provider: 'supabase',
-          };
-        }
-      }
-    } catch {
-      // Fallback transparently to Vercel Blob
+  const tokenRes = await fetch('/api/upload', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+    body: JSON.stringify({
+      action: 'signed-video-upload',
+      pathname: path,
+      contentType,
+    }),
+  });
+
+  if (tokenRes.ok) {
+    const signedData = (await tokenRes.json()) as {
+      provider?: string;
+      signedUrl?: string;
+      publicUrl?: string;
+      storagePath?: string;
+    };
+    if (
+      signedData.provider === 'supabase' &&
+      signedData.signedUrl &&
+      signedData.publicUrl
+    ) {
+      await putFileWithProgress(
+        signedData.signedUrl,
+        file,
+        contentType,
+        onProgress
+      );
+      onProgress?.(100);
+      return {
+        url: signedData.publicUrl,
+        storagePath: signedData.storagePath || path,
+        provider: 'supabase',
+      };
     }
+  } else if (tokenRes.status === 401 || tokenRes.status === 403) {
+    const errBody = (await tokenRes.json().catch(() => ({}))) as {
+      error?: string;
+    };
+    throw new Error(
+      errBody.error || 'Dars videosini faqat ustoz yoki administrator yuklay oladi.'
+    );
   }
 
   const blob = await upload(path, file, {
     access: 'public',
     handleUploadUrl: '/api/upload',
-    contentType: file.type || 'video/mp4',
+    contentType,
     onUploadProgress: (evt) => {
       if (onProgress) {
         onProgress(Math.round(evt.percentage));
@@ -208,7 +253,7 @@ export async function uploadLessonVideo(
 
 /**
  * Upload profile or mentor avatar image (compressed in browser first)
- * to active Supabase Storage (`avatars` bucket) or Vercel Blob (`/api/upload`).
+ * via `/api/upload` to Supabase Storage (`avatars` bucket).
  */
 export async function uploadAvatar(
   file: File,
@@ -227,44 +272,20 @@ export async function uploadAvatar(
   const cleanName = sanitizeFileName(readyFile.name);
   const path = `avatars/${folder}/${Date.now()}-${cleanName}`;
 
-  const sb = isSupabaseConfigured() ? getSupabaseClient() : null;
-  if (sb) {
-    try {
-      const bucketPath = path.replace(/^avatars\//, '');
-      const { error } = await sb.storage
-        .from('avatars')
-        .upload(bucketPath, readyFile, {
-          cacheControl: '3600',
-          upsert: true,
-          contentType: readyFile.type || 'image/jpeg',
-        });
-      if (!error) {
-        const { data } = sb.storage.from('avatars').getPublicUrl(bucketPath);
-        if (data?.publicUrl) {
-          return {
-            url: data.publicUrl,
-            storagePath: `avatars/${bucketPath}`,
-            provider: 'supabase',
-          };
-        }
-      }
-    } catch {
-      // Fallback transparently to server / Vercel Blob
-    }
-  }
-
   const formData = new FormData();
   formData.append('file', readyFile);
   formData.append('folder', folder);
 
   const res = await fetch('/api/upload', {
     method: 'POST',
+    credentials: 'same-origin',
     body: formData,
   });
 
   const json = (await res.json().catch(() => ({}))) as {
     url?: string;
     storagePath?: string;
+    provider?: 'supabase' | 'vercel-blob' | 'local-preview';
     error?: string;
   };
 
@@ -278,6 +299,6 @@ export async function uploadAvatar(
   return {
     url: json.url,
     storagePath: json.storagePath || path,
-    provider: 'vercel-blob',
+    provider: json.provider || 'supabase',
   };
 }

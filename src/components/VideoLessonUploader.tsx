@@ -315,7 +315,7 @@ export default function VideoLessonUploader({
           </div>
 
           <p className="text-xs text-slate-400">
-            Qo‘llab-quvvatlanadigan formatlar: MP4, WebM, MOV (maksimal 100 MB).
+            Qo‘llab-quvvatlanadigan formatlar: MP4, WebM, MOV (maksimal 50 MB).
           </p>
 
           {uploading && (

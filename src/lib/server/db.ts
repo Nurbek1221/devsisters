@@ -1,5 +1,10 @@
-import crypto from 'crypto';
-import { del, get, list, put } from '@vercel/blob';
+import { attachDatabasePool } from '@vercel/functions';
+import { del } from '@vercel/blob';
+import { Pool } from 'pg';
+import {
+  getSupabaseAdmin,
+  parseSupabasePublicObjectUrl,
+} from './supabase-admin';
 import {
   CertificateRecord,
   ChatMessage,
@@ -20,8 +25,7 @@ import {
 } from '../data';
 import { hashPassword, verifyPassword } from './auth-crypto';
 
-const LEGACY_STATE_BLOB_PATHNAME = 'devsisters-db/state.json';
-const STATE_PREFIX = 'devsisters-db/state/';
+const PLATFORM_STATE_ROW_ID = 'main';
 
 export interface PlatformState {
   users: User[];
@@ -414,91 +418,84 @@ function normalizeState(raw: Partial<PlatformState>): PlatformState {
 
 let memoryState: PlatformState | null = null;
 let writeQueue: Promise<void> = Promise.resolve();
+let pgPool: Pool | null = null;
+let schemaReady = false;
 
-function hasBlobToken(): boolean {
-  return Boolean(process.env.BLOB_READ_WRITE_TOKEN?.trim());
-}
-
-const RETAIN_SNAPSHOTS = 25;
-const MIN_DELETE_AGE_MS = 2 * 60 * 1000;
-
-async function tryReadSnapshotUrl(url: string): Promise<PlatformState | null> {
+function getPostgresConnectionString(): string {
+  const raw =
+    process.env.POSTGRES_URL?.trim() ||
+    process.env.POSTGRES_PRISMA_URL?.trim() ||
+    process.env.POSTGRES_URL_NON_POOLING?.trim() ||
+    '';
+  if (!raw) return '';
   try {
-    const res = await fetch(url, { cache: 'no-store' });
-    if (!res.ok) {
-      console.warn(`[db] snapshot HTTP ${res.status}: ${url}`);
-      return null;
-    }
-    const parsed = (await res.json()) as Partial<PlatformState>;
-    return normalizeState(parsed);
-  } catch (err) {
-    console.error(`[db] snapshot read/normalize failed for ${url}:`, err);
-    return null;
+    const parsed = new URL(raw);
+    parsed.searchParams.delete('sslmode');
+    return parsed.toString();
+  } catch {
+    return raw;
   }
 }
 
+function getPool(): Pool | null {
+  const connStr = getPostgresConnectionString();
+  if (!connStr) return null;
+  if (!pgPool) {
+    pgPool = new Pool({
+      connectionString: connStr,
+      ssl: { rejectUnauthorized: false },
+      max: 5,
+    });
+    attachDatabasePool(pgPool);
+  }
+  return pgPool;
+}
+
+async function ensureSchema(pool: Pool): Promise<void> {
+  if (schemaReady) return;
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS public.platform_state (
+      id TEXT PRIMARY KEY,
+      state JSONB NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
+  schemaReady = true;
+}
+
 /**
- * Reads platform state from immutable versioned Blob snapshots (`devsisters-db/state/<ts>-<id>.json`).
- * Avoids CDN overwrite propagation delays so writes are visible immediately across all serverless regions.
+ * Reads platform state from PostgreSQL (`public.platform_state`),
+ * initializing with default seed data if the table is empty.
  */
 export async function readPlatformState(): Promise<PlatformState> {
-  if (hasBlobToken()) {
-    const firstList = await list({ prefix: STATE_PREFIX });
-    const ordered = [...firstList.blobs].sort((a, b) =>
-      b.pathname.localeCompare(a.pathname)
+  const pool = getPool();
+  if (pool) {
+    await ensureSchema(pool);
+    const { rows } = await pool.query<{ state: Partial<PlatformState> }>(
+      'SELECT state FROM public.platform_state WHERE id = $1',
+      [PLATFORM_STATE_ROW_ID]
     );
-
-    for (const candidate of ordered) {
-      const state = await tryReadSnapshotUrl(candidate.url);
-      if (state) {
-        memoryState = state;
-        return state;
-      }
-    }
-
-    if (ordered.length > 0) {
-      // Wait briefly and retry list() once in case of transient edge replication lag
-      await new Promise((r) => setTimeout(r, 250));
-      const retryList = await list({ prefix: STATE_PREFIX });
-      const retryOrdered = [...retryList.blobs].sort((a, b) =>
-        b.pathname.localeCompare(a.pathname)
-      );
-      for (const candidate of retryOrdered) {
-        const state = await tryReadSnapshotUrl(candidate.url);
-        if (state) {
-          memoryState = state;
-          return state;
-        }
-      }
-
-      if (memoryState) {
-        console.warn('[db] Using in-memory fallback after snapshot read failures.');
-        return memoryState;
-      }
-      throw new Error('Platforma ma’lumotlar bazasini o‘qib bo‘lmadi (snapshotlar vaqtincha javob bermadi).');
-    }
-
-    // Only initialize/migrate when `devsisters-db/state/` is completely empty
-    try {
-      const legacy = await get(LEGACY_STATE_BLOB_PATHNAME, {
-        access: 'public',
-        useCache: false,
-      });
-      if (legacy && legacy.statusCode === 200) {
-        const parsed = (await new Response(
-          legacy.stream
-        ).json()) as Partial<PlatformState>;
-        const normalized = normalizeState(parsed);
-        await writePlatformState(normalized);
-        return normalized;
-      }
-    } catch (err) {
-      console.error('[db] Legacy state migration failed:', err);
+    if (rows[0]?.state) {
+      const normalized = normalizeState(rows[0].state);
+      memoryState = normalized;
+      return normalized;
     }
 
     const seeded = createInitialState();
-    await writePlatformState(seeded);
-    return seeded;
+    await pool.query(
+      `INSERT INTO public.platform_state (id, state)
+       VALUES ($1, $2::jsonb)
+       ON CONFLICT (id) DO NOTHING`,
+      [PLATFORM_STATE_ROW_ID, JSON.stringify(seeded)]
+    );
+
+    const retry = await pool.query<{ state: Partial<PlatformState> }>(
+      'SELECT state FROM public.platform_state WHERE id = $1',
+      [PLATFORM_STATE_ROW_ID]
+    );
+    const finalState = normalizeState(retry.rows[0]?.state ?? seeded);
+    memoryState = finalState;
+    return finalState;
   }
 
   if (!memoryState) {
@@ -513,36 +510,17 @@ export async function writePlatformState(
   const normalized = normalizeState(nextState);
   memoryState = normalized;
 
-  if (hasBlobToken()) {
-    const ts = String(Date.now()).padStart(15, '0');
-    const rand = crypto.randomBytes(3).toString('hex');
-    const key = `${STATE_PREFIX}${ts}-${rand}.json`;
-
-    await put(key, JSON.stringify(normalized), {
-      access: 'public',
-      addRandomSuffix: false,
-      contentType: 'application/json',
-      cacheControlMaxAge: 0,
-    });
-
-    // Retain at least 25 snapshots and never delete blobs younger than 2 minutes
-    // so eventually-consistent list() calls never see 404 URLs.
-    try {
-      const listed = await list({ prefix: STATE_PREFIX });
-      const ordered = [...listed.blobs].sort((a, b) =>
-        b.pathname.localeCompare(a.pathname)
-      );
-      const cutoff = Date.now() - MIN_DELETE_AGE_MS;
-      const stale = ordered
-        .slice(RETAIN_SNAPSHOTS)
-        .filter((b) => b.uploadedAt.getTime() < cutoff)
-        .map((b) => b.url);
-      if (stale.length > 0) {
-        await del(stale);
-      }
-    } catch {
-      // Best-effort cleanup
-    }
+  const pool = getPool();
+  if (pool) {
+    await ensureSchema(pool);
+    await pool.query(
+      `INSERT INTO public.platform_state (id, state, updated_at)
+       VALUES ($1, $2::jsonb, NOW())
+       ON CONFLICT (id) DO UPDATE
+         SET state = EXCLUDED.state,
+             updated_at = NOW()`,
+      [PLATFORM_STATE_ROW_ID, JSON.stringify(normalized)]
+    );
   }
   return normalized;
 }
@@ -556,6 +534,56 @@ export async function mutatePlatformState<T>(
 ): Promise<T> {
   let output!: T;
   const run = async () => {
+    const pool = getPool();
+    if (pool) {
+      await ensureSchema(pool);
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        let currentRes = await client.query<{ state: Partial<PlatformState> }>(
+          'SELECT state FROM public.platform_state WHERE id = $1 FOR UPDATE',
+          [PLATFORM_STATE_ROW_ID]
+        );
+        if (!currentRes.rows[0]?.state) {
+          const seeded = createInitialState();
+          await client.query(
+            `INSERT INTO public.platform_state (id, state)
+             VALUES ($1, $2::jsonb)
+             ON CONFLICT (id) DO NOTHING`,
+            [PLATFORM_STATE_ROW_ID, JSON.stringify(seeded)]
+          );
+          currentRes = await client.query<{ state: Partial<PlatformState> }>(
+            'SELECT state FROM public.platform_state WHERE id = $1 FOR UPDATE',
+            [PLATFORM_STATE_ROW_ID]
+          );
+        }
+
+        const current = normalizeState(
+          currentRes.rows[0]?.state ?? createInitialState()
+        );
+        const cloned = structuredClone(current);
+        const updated = await mutator(cloned);
+        const normalizedNext = normalizeState(updated.state);
+
+        await client.query(
+          `UPDATE public.platform_state
+             SET state = $2::jsonb,
+                 updated_at = NOW()
+           WHERE id = $1`,
+          [PLATFORM_STATE_ROW_ID, JSON.stringify(normalizedNext)]
+        );
+        await client.query('COMMIT');
+        memoryState = normalizedNext;
+        output = updated.result;
+        return;
+      } catch (err) {
+        await client.query('ROLLBACK').catch(() => {});
+        throw err;
+      } finally {
+        client.release();
+      }
+    }
+
     const current = await readPlatformState();
     const cloned = structuredClone(current);
     const updated = await mutator(cloned);
@@ -568,11 +596,29 @@ export async function mutatePlatformState<T>(
 }
 
 export async function deleteBlobIfOwned(urlOrPath?: string): Promise<void> {
-  if (!urlOrPath || !hasBlobToken()) return;
-  if (!urlOrPath.includes('blob.vercel-storage.com')) return;
-  try {
-    await del(urlOrPath);
-  } catch {
-    // Best-effort cleanup
+  if (!urlOrPath) return;
+
+  const supaObj = parseSupabasePublicObjectUrl(urlOrPath);
+  if (supaObj) {
+    const sb = getSupabaseAdmin();
+    if (sb) {
+      try {
+        await sb.storage.from(supaObj.bucket).remove([supaObj.path]);
+      } catch {
+        // Best-effort cleanup
+      }
+    }
+    return;
+  }
+
+  if (
+    urlOrPath.includes('blob.vercel-storage.com') &&
+    process.env.BLOB_READ_WRITE_TOKEN?.trim()
+  ) {
+    try {
+      await del(urlOrPath);
+    } catch {
+      // Best-effort cleanup
+    }
   }
 }

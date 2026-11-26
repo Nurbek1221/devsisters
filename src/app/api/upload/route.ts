@@ -3,6 +3,7 @@ import { put } from '@vercel/blob';
 import { handleUpload, type HandleUploadBody } from '@vercel/blob/client';
 import { metric } from '@vercel/functions';
 import { getSessionPayload } from '@/lib/server/auth-crypto';
+import { getSupabaseAdmin } from '@/lib/server/supabase-admin';
 
 const IMAGE_MIME_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
 const VIDEO_MIME_TYPES = [
@@ -12,7 +13,7 @@ const VIDEO_MIME_TYPES = [
   'video/ogg',
 ];
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024; // 5 MB
-const MAX_VIDEO_BYTES = 100 * 1024 * 1024; // 100 MB
+const MAX_VIDEO_BYTES = 50 * 1024 * 1024; // 50 MB (Supabase Storage limit)
 
 export async function POST(request: Request) {
   const contentType = request.headers.get('content-type') || '';
@@ -20,6 +21,15 @@ export async function POST(request: Request) {
   // 1. Direct FormData upload (used for avatar images)
   if (contentType.includes('multipart/form-data')) {
     try {
+      const session = await getSessionPayload();
+      if (!session) {
+        metric('media.upload', 1, { kind: 'avatar', outcome: 'error' });
+        return NextResponse.json(
+          { error: 'Rasm yuklash uchun tizimga kiring.' },
+          { status: 401 }
+        );
+      }
+
       const formData = await request.formData();
       const file = formData.get('file');
       const folder = String(formData.get('folder') || 'users').replace(
@@ -62,10 +72,37 @@ export async function POST(request: Request) {
       }
 
       const safeName = file.name.toLowerCase().replace(/[^a-z0-9.\-_]/g, '-');
-      const pathname = `avatars/${folder || 'users'}/${Date.now()}-${safeName}`;
+      const objectSubPath = `${folder || 'users'}/${Date.now()}-${safeName}`;
+      const pathname = `avatars/${objectSubPath}`;
+
+      const sbAdmin = getSupabaseAdmin();
+      if (sbAdmin) {
+        const buffer = Buffer.from(await file.arrayBuffer());
+        const { error: upErr } = await sbAdmin.storage
+          .from('avatars')
+          .upload(objectSubPath, buffer, {
+            contentType: resolvedContentType,
+            cacheControl: '3600',
+            upsert: true,
+          });
+        if (upErr) {
+          throw new Error(
+            `Rasmni Supabase xotirasiga yuklashda xatolik: ${upErr.message}`
+          );
+        }
+        const { data: pub } = sbAdmin.storage
+          .from('avatars')
+          .getPublicUrl(objectSubPath);
+        metric('media.upload', 1, { kind: 'avatar', outcome: 'success' });
+        return NextResponse.json({
+          url: pub.publicUrl,
+          storagePath: pathname,
+          provider: 'supabase',
+        });
+      }
 
       if (!process.env.BLOB_READ_WRITE_TOKEN?.trim()) {
-        // Fallback when local machine runs offline without BLOB token
+        // Fallback when local machine runs offline without storage credentials
         const bytes = Buffer.from(await file.arrayBuffer());
         const dataUrl = `data:${resolvedContentType};base64,${bytes.toString('base64')}`;
         return NextResponse.json({
@@ -101,9 +138,78 @@ export async function POST(request: Request) {
     }
   }
 
-  // 2. Client token generation for large video uploads (`@vercel/blob/client`)
+  // 2. Client signed upload URL for lesson videos (Supabase Storage or Vercel Blob fallback)
   try {
-    const body = (await request.json()) as HandleUploadBody;
+    const rawBody = (await request.json()) as
+      | (HandleUploadBody & { action?: string; pathname?: string })
+      | { action?: string; pathname?: string; contentType?: string };
+
+    if (
+      'action' in rawBody &&
+      rawBody.action === 'signed-video-upload' &&
+      typeof rawBody.pathname === 'string'
+    ) {
+      const session = await getSessionPayload();
+      if (
+        !session ||
+        (session.role !== 'teacher' && session.role !== 'admin')
+      ) {
+        metric('media.upload_token', 1, { kind: 'video', outcome: 'error' });
+        return NextResponse.json(
+          { error: 'Dars videosini faqat ustoz yoki administrator yuklay oladi.' },
+          { status: 403 }
+        );
+      }
+
+      const cleanPathname = rawBody.pathname.replace(/^\/+/, '');
+      if (!cleanPathname.startsWith('lesson-videos/')) {
+        return NextResponse.json(
+          { error: 'Ruxsat etilmagan yuklash manzili.' },
+          { status: 400 }
+        );
+      }
+
+      const sbAdmin = getSupabaseAdmin();
+      if (!sbAdmin) {
+        return NextResponse.json(
+          { error: 'Supabase Storage sozlanmagan.' },
+          { status: 503 }
+        );
+      }
+
+      const bucketPath = cleanPathname.replace(/^lesson-videos\//, '');
+      const { data: signed, error: signErr } = await sbAdmin.storage
+        .from('lesson-videos')
+        .createSignedUploadUrl(bucketPath);
+
+      if (signErr || !signed?.signedUrl) {
+        metric('media.upload_token', 1, { kind: 'video', outcome: 'error' });
+        return NextResponse.json(
+          {
+            error:
+              signErr?.message ||
+              'Video yuklash havolasini yaratib bo‘lmadi.',
+          },
+          { status: 500 }
+        );
+      }
+
+      const { data: pub } = sbAdmin.storage
+        .from('lesson-videos')
+        .getPublicUrl(bucketPath);
+
+      metric('media.upload_token', 1, { kind: 'video', outcome: 'success' });
+      return NextResponse.json({
+        provider: 'supabase',
+        signedUrl: signed.signedUrl,
+        token: signed.token,
+        path: signed.path,
+        storagePath: cleanPathname,
+        publicUrl: pub.publicUrl,
+      });
+    }
+
+    const body = rawBody as HandleUploadBody;
 
     const jsonResponse = await handleUpload({
       body,
